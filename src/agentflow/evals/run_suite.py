@@ -32,7 +32,10 @@ def run_suite(
     *,
     settings: Settings | None = None,
     verifier: bool = True,
+    arm: str | None = None,
     fault_p: float = 0.0,
+    silent_p: float = 0.0,
+    send_guard: bool = True,
     seeds: int = 1,
     tasks: list[Task] | None = None,
     only: list[str] | None = None,
@@ -50,13 +53,14 @@ def run_suite(
     llm = make_llm(tasks)
     out_dir = out_dir or RESULTS_DIR
     trace_dir = trace_dir or (settings.runs_dir / "eval" / name)
-    cfg = AgentConfig(verifier=verifier)
+    cfg = AgentConfig.for_arm(arm or ('full' if verifier else 'off'), send_guard=send_guard)
+    verifier = cfg.verifier
     rows = []
     started = time.time()
     for seed in range(seeds):
         for t in tasks:
             tp = trace_dir / f"{t.id}_s{seed}.jsonl"
-            r = run_task(t, llm, settings=settings, cfg=cfg, fault_p=fault_p, seed=seed, trace_path=tp)
+            r = run_task(t, llm, settings=settings, cfg=cfg, fault_p=fault_p, silent_p=silent_p, seed=seed, trace_path=tp)
             r.trace = tp.name
             rows.append(r.to_dict())
             progress(f"[{name}] {t.id} seed {seed}: {'ok' if r.success else 'FAIL'} "
@@ -70,7 +74,10 @@ def run_suite(
         "device": rt.get("device", "n/a"),
         "dtype": rt.get("dtype", "n/a"),
         "verifier": verifier,
+        "arm": cfg.arm,
+        "send_guard": send_guard,
         "fault_p": fault_p,
+        "silent_p": silent_p,
         "seeds": seeds,
         "n": len(rows),
         "successes": k,

@@ -62,22 +62,61 @@ def cmd_eval(args: argparse.Namespace) -> int:
 
     settings = Settings()
     out = Path(args.out) if args.out else None
-    modes = [True, False] if args.verifier == "both" else [args.verifier == "on"]
+    arms = {"both": ["full", "off"], "on": ["full"], "off": ["off"], "all": ["off", "retry", "full"]}.get(
+        args.verifier, args.verifier.split(","))
     short = args.model.split("/")[-1].lower() if args.model else args.llm
     cache = Path(args.cache) if args.cache else None
-    for ver in modes:
+    for arm in arms:
         name = args.name or f"{short}_{'faults' + str(int(args.faults * 100)) if args.faults else 'clean'}"
-        name = f"{name}_{'verify' if ver else 'noverify'}"
+        name = f"{name}_{arm}"
         run_suite(
             name,
             lambda tasks: make_llm(
                 args.llm, settings=settings, model=args.model, cache_dir=cache,
                 device=args.device, dtype=args.dtype, scripts={t.prompt: t.script for t in tasks},
             ),
-            settings=settings, verifier=ver, fault_p=args.faults, seeds=args.seeds,
+            settings=settings, arm=arm, fault_p=args.faults, silent_p=args.silent, seeds=args.seeds,
+            send_guard=not args.no_send_guard,
             only=args.only.split(",") if args.only else None, out_dir=out,
             scripted=args.llm == "scripted",
         )
+    return 0
+
+
+def cmd_ablate(args: argparse.Namespace) -> int:
+    """Dose-response: arms x fault kinds x fault rates x seeds. One result file per cell, resumable."""
+    import json
+
+    from .evals.run_suite import RESULTS_DIR, run_suite
+    from .llm import make_llm
+
+    settings = Settings()
+    out = (Path(args.out) if args.out else RESULTS_DIR) / "dose"
+    cache = Path(args.cache) if args.cache else None
+    arms = args.arms.split(",")
+    rates = [float(r) for r in args.rates.split(",")]
+    cells = []
+    for rate in rates:
+        for kind in (["clean"] if rate == 0 else args.kinds.split(",")):
+            cells.append((kind, rate))
+    for kind, rate in cells:
+        for arm in arms:
+            name = f"{kind}_p{int(round(rate * 100)):02d}_{arm}"
+            if (out / f"{name}.json").exists():
+                print(f"skip {name} (done)")
+                continue
+            run_suite(
+                name,
+                lambda tasks: make_llm(args.llm, settings=settings, model=args.model, cache_dir=cache,
+                                       device=args.device, dtype=args.dtype),
+                settings=settings, arm=arm,
+                fault_p=rate if kind == "transient" else 0.0, silent_p=rate if kind == "silent" else 0.0,
+                seeds=1 if rate == 0 else args.seeds, only=args.only.split(",") if args.only else None,
+                out_dir=out, trace_dir=settings.runs_dir / "eval" / "dose" / name,
+                progress=lambda m: print(m, flush=True) if m.endswith("s)") and " t24 " in m else None,
+            )
+            print(f"done {name}", flush=True)
+    print(json.dumps({"cells": len(cells) * len(arms)}))
     return 0
 
 
@@ -127,8 +166,11 @@ def main(argv: list[str] | None = None) -> int:
     e = sub.add_parser("eval", help="run the task suite")
     e.add_argument("--llm", default="scripted", choices=["local", "scripted", "openai", "anthropic"])
     e.add_argument("--model", default=None)
-    e.add_argument("--verifier", default="both", choices=["on", "off", "both"])
-    e.add_argument("--faults", type=float, default=0.0)
+    e.add_argument("--verifier", default="both",
+                   help="arms to run: both (full,off), on, off, all (off,retry,full) or a comma list of off,retry,full")
+    e.add_argument("--faults", type=float, default=0.0, help="rate of injected transient tool failures")
+    e.add_argument("--silent", type=float, default=0.0, help="rate of injected silently wrong tool results")
+    e.add_argument("--no-send-guard", action="store_true", help="allow emails to addresses the request does not name")
     e.add_argument("--seeds", type=int, default=1)
     e.add_argument("--only", default=None, help="comma separated task ids")
     e.add_argument("--name", default=None)
@@ -137,6 +179,20 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--dtype", default="auto", help="auto, float32, float16 or bfloat16 (env AGENTFLOW_DTYPE)")
     e.add_argument("--cache", default=None)
     e.set_defaults(fn=cmd_eval)
+
+    d = sub.add_parser("ablate", help="dose-response over fault rates: off / retry-only / full verifier")
+    d.add_argument("--llm", default="local", choices=["local", "openai", "anthropic"])
+    d.add_argument("--model", default=None)
+    d.add_argument("--arms", default="off,retry,full")
+    d.add_argument("--kinds", default="transient,silent")
+    d.add_argument("--rates", default="0,0.15,0.3,0.5")
+    d.add_argument("--seeds", type=int, default=5)
+    d.add_argument("--only", default=None)
+    d.add_argument("--out", default=None)
+    d.add_argument("--device", default="auto")
+    d.add_argument("--dtype", default="auto")
+    d.add_argument("--cache", default=None)
+    d.set_defaults(fn=cmd_ablate)
 
     sub.add_parser("eval-report", help="write evals/results/SUMMARY.md").set_defaults(fn=cmd_report)
     t = sub.add_parser("replay", help="print a recorded trace")

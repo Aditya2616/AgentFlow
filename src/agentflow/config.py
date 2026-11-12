@@ -23,7 +23,19 @@ class AgentConfig:
     max_replans: int = 2
     max_acts: int = 14  # hard cap on tool-filling attempts per run
     max_plan_steps: int = 6
-    verifier: bool = True
+    verifier: bool = True  # False = the "off" arm: every result is passed on unchecked
+    retry_only: bool = False  # with verifier=True: only retry tool errors, no result checks, no re-plan
+    send_guard: bool = True  # an email must go to an address that appears in the user's request
+
+    @property
+    def arm(self) -> str:
+        return "off" if not self.verifier else "retry" if self.retry_only else "full"
+
+    @classmethod
+    def for_arm(cls, arm: str, **kw) -> AgentConfig:
+        if arm not in ("off", "retry", "full"):
+            raise ValueError(f"unknown arm {arm!r}; choose off, retry or full")
+        return cls(verifier=arm != "off", retry_only=arm == "retry", **kw)
 
 
 @dataclass

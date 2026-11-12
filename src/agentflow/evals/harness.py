@@ -35,6 +35,11 @@ class TaskResult:
     verifier_flags: int = 0
     would_flag: int = 0
     plan_fallback: bool = False
+    model_calls: int = 0
+    tool_calls: int = 0
+    faults_transient: int = 0
+    faults_silent: int = 0
+    emails_sent: int = 0
     seed: int = 0
     trace: str = ""
     extra: dict = field(default_factory=dict)
@@ -58,6 +63,7 @@ def run_task(
     settings: Settings,
     cfg: AgentConfig | None = None,
     fault_p: float = 0.0,
+    silent_p: float = 0.0,
     seed: int = 0,
     trace_path: Path | None = None,
     listeners: list | None = None,
@@ -70,7 +76,7 @@ def run_task(
         corpus_dir=settings.corpus_dir, db_path=db, outbox_dir=tmp / "outbox", runs_dir=settings.runs_dir,
         search_mode=settings.search_mode, threads=settings.threads,
     )
-    faults = FaultInjector(fault_p, seed) if fault_p else None
+    faults = FaultInjector(fault_p, seed, silent_p) if (fault_p or silent_p) else None
     tracer = Tracer(trace_path, listeners)
     runner = AgentRunner(llm, ToolBox(local, faults), tracer, cfg)
     before = _count_orders(db)
@@ -102,6 +108,10 @@ def run_task(
         verifier_flags=sum(1 for e in verifies if e.attributes.get("agentflow.verdict") != "pass"),
         would_flag=sum(1 for e in verifies if e.attributes.get("agentflow.would_flag")),
         plan_fallback=any(e.attributes.get("agentflow.plan_fallback") for e in plans),
+        model_calls=sum(1 for e in ends if e.name == "chat"), tool_calls=len(tools),
+        faults_transient=faults.counts["transient"] if faults else 0,
+        faults_silent=faults.counts["silent"] if faults else 0,
+        emails_sent=len(outbox),
         seed=seed, trace=str(trace_path or ""),
     )
     if not keep_outbox:

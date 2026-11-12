@@ -59,17 +59,34 @@ def _grounded(body: str, prev_text: str) -> bool:
     return bool(names & {w.lower() for w in re.findall(r"[A-Za-z]{3,}", body)})
 
 
-def preflight(step: dict, args: dict, prev: dict[str, dict]) -> list[Check]:
+EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+
+
+def preflight(
+    step: dict, args: dict, prev: dict[str, dict], task: str = "", send_guard: bool = True
+) -> list[Check]:
     """Checks on the arguments of a side-effecting tool, run BEFORE it executes, so a rejected
-    email is never written and a retry cannot create duplicates."""
+    email is never written and a retry cannot create duplicates.
+
+    Send guard: an email may only go to an address the user's request names. A model that
+    invents a recipient (or emails something nobody asked for) is stopped before anything is written.
+    """
     if step["tool"] != "email":
         return []
+    guard: list[Check] = []
+    if send_guard and task:
+        allowed = {a.lower() for a in EMAIL.findall(task)}
+        to = str(args.get("to", "")).strip().lower()
+        guard = [Check(name="recipient_requested", ok=to in allowed,
+                       detail="the request does not ask for an email to this address; only email addresses named in the request")]
+        if not guard[0].ok:
+            return guard
     done = [p for p in prev.values() if p.get("ok")]
     if not done:
-        return []
+        return guard
     prev_text = " ".join(json.dumps(compact(p["tool"], p), default=str) for p in done)
     ok = _grounded(args.get("body", ""), prev_text)
-    return [Check(name="grounded", ok=ok, detail="the email body does not mention any fact from the earlier results")]
+    return guard + [Check(name="grounded", ok=ok, detail="the email body does not mention any fact from the earlier results")]
 
 
 def run_checks(step: dict, obs: dict, prev: dict[str, dict]) -> list[Check]:
@@ -121,6 +138,11 @@ def verify(
 ) -> tuple[Verdict, Any]:
     """Returns (verdict, would_flag). With the verifier disabled the verdict is always pass,
     but the checks still run so traces show what the verifier would have caught."""
+    if cfg.verifier and cfg.retry_only:
+        # the retry-only arm: a tool that raised is retried with the error text, nothing else is checked,
+        # and there is no re-plan, so once the retries are used up the run fails
+        checks = [Check(name="tool_ran", ok=bool(obs["ok"]), detail=str(obs.get("error") or ""))]
+        return decide(checks, obs, attempt, cfg.max_replans, cfg), None
     checks = run_checks(step, obs, prev)
     real = decide(checks, obs, attempt, replans, cfg)
     if cfg.verifier:

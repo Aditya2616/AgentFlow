@@ -130,3 +130,47 @@ def test_full_scripted_suite_with_oracle_scripts(tasks, settings, verifier):
         llm = ScriptedChat(scripts={t.prompt: t.script})
         ok += run_task(t, llm, settings=settings, cfg=AgentConfig(verifier=verifier)).success
     assert ok == len(tasks)  # oracle scripts make no mistakes, so both modes pass everything
+
+
+def test_retry_only_arm_retries_tool_errors_but_never_replans_or_checks_results(tasks, settings):
+    cfg = AgentConfig.for_arm("retry")
+    # a wrong table name raises, so it is retried with the error text and then passes
+    res, tr = _run(with_mistake(tasks["t03"], "bad_args"), settings, cfg=cfg)
+    assert res.status == "completed" and _verdicts(tr) == ["retry", "pass"]
+    # a wrong plan keeps failing: no re-plan in this arm, the run fails after the retries
+    res, tr = _run(with_mistake(tasks["t05"], "bad_plan"), settings, cfg=cfg)
+    assert res.status == "failed" and res.state["replans"] == 0
+    assert "replan" not in _verdicts(tr)
+
+
+def test_silent_faults_are_only_caught_by_result_checks(tasks, settings):
+    task = tasks["t03"]  # one SQL count; a silent fault empties the rows
+    arms = {}
+    for arm in ("off", "retry", "full"):
+        faults = FaultInjector(0.0, 0, silent=1.0)
+        res, _ = _run(task, settings, cfg=AgentConfig.for_arm(arm), faults=faults)
+        arms[arm] = res.status
+        assert faults.counts["silent"] >= 1
+    assert arms["off"] == "completed"       # the empty result is passed on without a check
+    assert arms["retry"] == "completed"     # nothing raised, so retry-only does not notice either
+    assert arms["full"] == "failed"         # has_rows rejects it every time and the run ends honestly
+
+
+def test_fault_injector_counts_and_is_seeded():
+    a, b = FaultInjector(0.5, 3), FaultInjector(0.5, 3)
+    assert [a.hit() for _ in range(20)] == [b.hit() for _ in range(20)]
+    assert a.counts["transient"] == b.counts["transient"] > 0
+    inj = FaultInjector(0.0, 0, silent=1.0)
+    assert inj.perturb("search", {"hits": [1]})[0] == {"hits": []}
+    assert inj.perturb("email", {"ok": 1})[1] is None
+
+
+def test_send_guard_blocks_an_email_to_an_address_the_request_never_named(tasks, settings):
+    from agentflow.verifier import preflight
+
+    step = {"id": "s1", "tool": "email", "goal": "send"}
+    task = "Send the total to cfo@example.com"
+    ok = preflight(step, {"to": "cfo@example.com", "body": "x"}, {}, task)
+    bad = preflight(step, {"to": "c@d.com", "body": "x"}, {}, task)
+    assert all(c.ok for c in ok) and not bad[0].ok
+    assert preflight(step, {"to": "c@d.com", "body": "x"}, {}, task, send_guard=False) == []

@@ -60,17 +60,48 @@ class ToolOutcome:
     error: str | None = None
     error_kind: str | None = None  # bad_args | tool_error | blocked | timeout | transient | no_call
     latency_ms: int = 0
+    fault: str | None = None  # "transient" or "silent:<what>" when the evaluation injected a fault
 
 
 class FaultInjector:
-    """Deterministic transient failures, used by the evaluation to test the retry path."""
+    """Seeded faults for the evaluation.
 
-    def __init__(self, probability: float, seed: int) -> None:
-        self.p = probability
+    transient: the tool call raises a timeout (a plain retry fixes it).
+    silent: the tool succeeds but returns a well-formed, wrong result: no search hits, a SQL result
+        with zero rows, empty Python output, or a document cut to its first 40 characters.
+        Email is never perturbed. Only checking the result can notice a silent fault, and the
+        verifier has no check for the truncated document, which is reported as a limitation.
+    """
+
+    def __init__(self, probability: float = 0.0, seed: int = 0, silent: float = 0.0) -> None:
+        self.p, self.silent_p = probability, silent
         self.rng = random.Random(seed)
+        self.srng = random.Random(seed + 7919)
+        self.counts = {"transient": 0, "silent": 0}
 
     def hit(self) -> bool:
-        return self.rng.random() < self.p
+        hit = self.p > 0 and self.rng.random() < self.p
+        self.counts["transient"] += hit
+        return hit
+
+    def perturb(self, name: str, value: Any) -> tuple[Any, str | None]:
+        if name == "email" or not (self.silent_p > 0 and self.srng.random() < self.silent_p):
+            return value, None
+        v = dict(value) if isinstance(value, dict) else value
+        if name == "search":
+            v["hits"] = []
+        elif name == "sql":
+            v["rows"] = []
+        elif name == "python":
+            v["stdout"] = ""
+        elif name == "docs":
+            for key in ("text", "summary"):
+                if isinstance(v.get(key), str):
+                    v[key] = v[key][:40]
+        else:
+            return value, None
+        self.counts["silent"] += 1
+        return v, f"silent:{name}"
 
 
 class ToolBox:
@@ -124,10 +155,13 @@ class ToolBox:
             return done(ok=False, error=f"unknown tool {name!r}", error_kind="bad_args")
         if self.faults and self.faults.hit():
             return done(ok=False, error="TransientError: tool backend timed out (injected fault)",
-                        error_kind="transient")
+                        error_kind="transient", fault="transient")
         try:
             value = tool.invoke(args)
-            return done(ok=True, value=value)
+            fault = None
+            if self.faults:
+                value, fault = self.faults.perturb(name, value)
+            return done(ok=True, value=value, fault=fault)
         except ValidationError as exc:
             fields = ", ".join(str(e["loc"][0]) for e in exc.errors() if e.get("loc"))
             return done(ok=False, error=f"invalid arguments for {name}: check {fields}", error_kind="bad_args")

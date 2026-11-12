@@ -136,8 +136,9 @@ class AgentRunner:
             "agentflow.reused_args": reuse is not None,
         }) as sp:
             blocked = []
-            if args is not None and self.cfg.verifier:
-                blocked = [c for c in preflight(step, args, self._prev(state)) if not c.ok]
+            if args is not None and self.cfg.verifier and not self.cfg.retry_only:
+                blocked = [c for c in preflight(step, args, self._prev(state), state["task"], self.cfg.send_guard)
+                           if not c.ok]
             if args is None:
                 out = {"ok": False, "value": None, "error": why, "error_kind": "no_call", "latency_ms": 0}
             elif blocked:
@@ -146,13 +147,15 @@ class AgentRunner:
             else:
                 o = self.tb.execute(tool_name, args)
                 out = {"ok": o.ok, "value": o.value, "error": o.error, "error_kind": o.error_kind,
-                       "latency_ms": o.latency_ms}
+                       "latency_ms": o.latency_ms, "fault": o.fault}
             obs = {"step_id": step["id"], "tool": tool_name, "args": args or {}, "attempt": attempt, **out}
             if out["ok"]:
-                sp.set(**{"agentflow.result": compact(tool_name, obs), "agentflow.latency_ms": out["latency_ms"]})
+                sp.set(**{"agentflow.result": compact(tool_name, obs), "agentflow.latency_ms": out["latency_ms"],
+                          **({"agentflow.fault": out["fault"]} if out.get("fault") else {})})
             else:
                 sp.fail(**{"agentflow.error": out["error"], "agentflow.error_kind": out["error_kind"],
-                           "agentflow.latency_ms": out["latency_ms"]})
+                           "agentflow.latency_ms": out["latency_ms"],
+                           **({"agentflow.fault": out["fault"]} if out.get("fault") else {})})
         return {
             "obs": {**state.get("obs", {}), step["id"]: obs},
             "attempt": attempt, "acts": state.get("acts", 0) + 1, "reuse_args": None,
@@ -181,7 +184,7 @@ class AgentRunner:
         attempt, replans = state["attempt"], state.get("replans", 0)
         with self.tracer.span("agentflow.verify", self.root, **{
             "agentflow.node": "verifier", "agentflow.step_id": step["id"], "agentflow.attempt": attempt,
-            "agentflow.verifier_enabled": self.cfg.verifier,
+            "agentflow.verifier_enabled": self.cfg.verifier, "agentflow.arm": self.cfg.arm,
         }) as sp:
             verdict, would_flag = verify(step, obs, self._prev(state), attempt, replans, self.cfg)
             if state.get("acts", 0) >= self.cfg.max_acts and verdict.outcome in ("retry", "replan"):
@@ -242,7 +245,7 @@ class AgentRunner:
         self.root = self.tracer.start("invoke_agent", None, **{
             "gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": "agentflow",
             "gen_ai.request.model": self.model, "agentflow.task": task,
-            "agentflow.verifier_enabled": self.cfg.verifier, **(extra_attrs or {}),
+            "agentflow.verifier_enabled": self.cfg.verifier, "agentflow.arm": self.cfg.arm, **(extra_attrs or {}),
         })
         try:
             final = graph.invoke(

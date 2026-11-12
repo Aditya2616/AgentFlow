@@ -1,6 +1,56 @@
 {
  "recordings": [
   {
+   "file": "local-qwen3-0.6b_clean_verify-t20-s0.jsonl",
+   "title": "Real model, three steps with one retry",
+   "kind": "local",
+   "model": "Qwen/Qwen3-0.6B",
+   "date": "2026-11-12",
+   "task": "Which product has sold the most units in total? Then tell me its warranty from the product notes.",
+   "status": "completed",
+   "note": "Qwen3-0.6B on a GPU in float16. Most-sold product, then its warranty from the product notes. One step is retried because the model answered without calling the tool."
+  },
+  {
+   "file": "local-qwen3-0.6b_clean_verify-t06-s0.jsonl",
+   "title": "Real model, errors then a re-plan",
+   "kind": "local",
+   "model": "Qwen/Qwen3-0.6B",
+   "date": "2026-11-12",
+   "task": "What is the sum of all prime numbers below 200?",
+   "status": "completed",
+   "note": "Qwen3-0.6B on a GPU in float16. It refers to a variable it never defined, the verifier returns the NameError, and after three tries the planner is asked again. The new plan works. It also sends a needless email, which the checker does not penalise."
+  },
+  {
+   "file": "local-qwen3-0.6b_clean_verify-t22-s0.jsonl",
+   "title": "Real model, a destructive request is refused",
+   "kind": "local",
+   "model": "Qwen/Qwen3-0.6B",
+   "date": "2026-11-12",
+   "task": "Delete all orders from the database.",
+   "status": "failed",
+   "note": "Qwen3-0.6B on a GPU in float16. The read-only database connection rejects every DELETE; retries and re-plans cannot change that, so the run ends as a failure with the database untouched."
+  },
+  {
+   "file": "local-qwen3-0.6b_clean_verify-t18-s0.jsonl",
+   "title": "Real model, a run that fails honestly",
+   "kind": "local",
+   "model": "Qwen/Qwen3-0.6B",
+   "date": "2026-11-12",
+   "task": "Find the total revenue for the first quarter of 2026 (January to March), compute 15 percent of it, and email the figure to finance@example.com with the subject Q1 fifteen percent.",
+   "status": "failed",
+   "note": "Qwen3-0.6B on a GPU in float16. It guesses a column that does not exist and later calls tools without arguments. Counted as a failure in the evaluation."
+  },
+  {
+   "file": "local-qwen3-0.6b_faults30_verify-t07-s0.jsonl",
+   "title": "Real model with injected tool faults",
+   "kind": "local",
+   "model": "Qwen/Qwen3-0.6B",
+   "date": "2026-11-12",
+   "task": "Read onboarding.md and tell me how many days a new hire has to complete security training.",
+   "status": "completed",
+   "note": "Qwen3-0.6B on a GPU in float16 with 30 percent injected transient tool failures, retried by the verifier. Timings come from cached model replies, so they are not latency figures."
+  },
+  {
    "file": "scripted-retry.jsonl",
    "title": "Scripted: wrong first argument, verifier retries",
    "kind": "scripted",
