@@ -25,3 +25,6 @@ Everything specific to this project lives under `agentflow.*`:
 * `agentflow.step_id`, `agentflow.attempt`, `agentflow.arguments`, `agentflow.result`, `agentflow.error_kind` on tools
 * `agentflow.verdict` (`pass`, `retry`, `replan`, `fail`), `agentflow.reason`, `agentflow.checks`,
   `agentflow.would_flag` on `agentflow.verify`
+* `agentflow.arm` (`off`, `retry` or `full`) on the root and on `agentflow.verify`
+* `agentflow.fault` on `execute_tool` when the evaluation injected a fault (`transient` or `silent:<tool>`)
+* `agentflow.dropped_steps` on `agentflow.plan`: email steps removed by the send guard
