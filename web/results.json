@@ -1,0 +1,67 @@
+{
+ "model": "Qwen/Qwen3-0.6B",
+ "device": "cuda",
+ "dtype": "float16",
+ "cells": [
+  {
+   "kind": "clean",
+   "rate": 0.625,
+   "arm": "full",
+   "k": 15,
+   "n": 24,
+   "lo": 0.4271,
+   "hi": 0.7884,
+   "model_calls": 8.2917,
+   "tool_calls": 5.7917,
+   "faults": 0.0
+  },
+  {
+   "kind": "clean",
+   "rate": 0.6667,
+   "arm": "off",
+   "k": 16,
+   "n": 24,
+   "lo": 0.4671,
+   "hi": 0.8203,
+   "model_calls": 3.875,
+   "tool_calls": 1.7917,
+   "faults": 0.0
+  },
+  {
+   "kind": "clean",
+   "rate": 0.6667,
+   "arm": "retry",
+   "k": 16,
+   "n": 24,
+   "lo": 0.4671,
+   "hi": 0.8203,
+   "model_calls": 4.1667,
+   "tool_calls": 2.3333,
+   "faults": 0.0
+  },
+  {
+   "kind": "transient",
+   "rate": 0.5333,
+   "arm": "off",
+   "k": 64,
+   "n": 120,
+   "lo": 0.4444,
+   "hi": 0.6202,
+   "model_calls": 3.875,
+   "tool_calls": 1.7917,
+   "faults": 0.3083
+  },
+  {
+   "kind": "transient",
+   "rate": 0.6667,
+   "arm": "retry",
+   "k": 80,
+   "n": 120,
+   "lo": 0.5783,
+   "hi": 0.7447,
+   "model_calls": 4.0917,
+   "tool_calls": 2.6417,
+   "faults": 0.425
+  }
+ ]
+}

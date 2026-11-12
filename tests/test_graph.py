@@ -174,3 +174,20 @@ def test_send_guard_blocks_an_email_to_an_address_the_request_never_named(tasks,
     bad = preflight(step, {"to": "c@d.com", "body": "x"}, {}, task)
     assert all(c.ok for c in ok) and not bad[0].ok
     assert preflight(step, {"to": "c@d.com", "body": "x"}, {}, task, send_guard=False) == []
+
+
+def test_send_guard_drops_an_email_step_the_request_never_asked_for(tasks, settings):
+    from agentflow.llm.scripted import Script
+
+    base = tasks["t03"]  # "How many orders have the status shipped?" names no recipient
+    plan = [*base.script.plan, ("email", "email the answer")]
+    args = {**base.script.args, "email the answer": [{"to": "a@b.com", "subject": "x", "body": "159"}]}
+    task = replace(base, script=Script(plan, args, base.script.replan, base.script.answer))
+    res, tr = _run(task, settings)  # full arm, guard on
+    assert res.status == "completed"
+    assert not (settings.outbox_dir / "index.jsonl").exists()
+    first_plan = [e for e in tr.events if e.name == "agentflow.plan" and e.event == "start"][0]
+    assert first_plan.attributes["agentflow.dropped_steps"] == ["email the answer"]
+    # with the guard off the same plan sends the email
+    res, _ = _run(task, settings, cfg=AgentConfig(send_guard=False))
+    assert (settings.outbox_dir / "index.jsonl").exists()

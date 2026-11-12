@@ -80,6 +80,10 @@ def build_report(results_dir: Path = RESULTS_DIR) -> str:
 
 
 def write_report(results_dir: Path = RESULTS_DIR) -> Path:
+    from . import breakdown, dose_report
+
     out = results_dir / "SUMMARY.md"
     out.write_text(build_report(results_dir), encoding="utf-8")
+    dose_report.write_all()
+    breakdown.write()
     return out

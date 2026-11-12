@@ -21,7 +21,7 @@ from .planner import make_plan
 from .prompts import act_system, act_user, compact, finish_system, finish_user
 from .tools.registry import ToolBox
 from .tracing.writer import Tracer
-from .verifier import preflight, verify
+from .verifier import EMAIL, preflight, verify
 
 
 class AgentState(TypedDict, total=False):
@@ -105,6 +105,13 @@ class AgentRunner:
             self.cfg.max_plan_steps, replan=replans, done=done, failed=failed,
             reason=state.get("retry_reason") or "",
         )
+        dropped: list[str] = []
+        if self.cfg.verifier and not self.cfg.retry_only and self.cfg.send_guard and not EMAIL.search(state["task"]):
+            # send guard, plan level: the request names no recipient, so an email step was not asked for
+            kept = [st for st in steps if st.tool != "email"]
+            if kept and len(kept) < len(steps):
+                dropped = [st.goal for st in steps if st.tool == "email"]
+                steps = kept
         nid = state.get("next_id", 1)
         new = []
         for st in steps:
@@ -115,6 +122,7 @@ class AgentRunner:
             self.tracer.start("agentflow.plan", self.root, **{
                 "agentflow.node": "planner", "agentflow.plan": full, "agentflow.replan": replans,
                 "agentflow.plan_fallback": fallback, "agentflow.cursor": cursor,
+                "agentflow.dropped_steps": dropped,
             })
         )
         return {"plan": full, "next_id": nid, "attempt": 0, "retry_reason": None, "reuse_args": None}

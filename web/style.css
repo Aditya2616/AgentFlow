@@ -216,3 +216,19 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; }
 }
+
+/* results view */
+.views { margin-left: auto; }
+body.view-results .layout { display: none; }
+.results { max-width: 980px; margin: 0 auto; padding: 8px var(--gutter) 48px; }
+.res-card { padding: 22px; display: grid; gap: 14px; }
+.res-card h1 { font: 500 28px/1.15 var(--sans); letter-spacing: -.02em; }
+.res-card h1 em { font: italic 400 32px/1 var(--serif); color: var(--lime); }
+.chart { width: 100%; height: auto; max-height: 340px; }
+.legend .dot { display: inline-block; }
+.tbl { overflow-x: auto; }
+.tbl table { width: 100%; border-collapse: collapse; font: 400 12px/1.4 var(--mono); }
+.tbl th { text-align: left; color: var(--dim); font-weight: 500; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+.tbl td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tbl .ci { color: var(--dim); }
+@media (max-width: 560px) { .views { margin-left: 0; } .res-card { padding: 16px; } .res-card h1 { font-size: 23px; } }

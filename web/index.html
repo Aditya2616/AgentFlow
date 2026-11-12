@@ -16,8 +16,30 @@
   <header class="top">
     <a class="brand" href="./" aria-label="AgentFlow home">Agent<em>Flow</em></a>
     <span class="tagline">plan <i>→</i> act <i>→</i> verify</span>
+    <nav class="views seg" role="tablist" aria-label="View">
+      <button role="tab" id="view-run" aria-selected="true">Run</button>
+      <button role="tab" id="view-results" aria-selected="false">Results</button>
+    </nav>
     <span class="badge" id="badge" role="status">loading</span>
   </header>
+
+  <main class="results" id="results" hidden>
+    <section class="panel res-card">
+      <h1>Does <em>checking</em> beat plain retry?</h1>
+      <p class="note" id="results-meta"></p>
+      <div class="seg" id="kind-seg" role="tablist" aria-label="Fault type">
+        <button role="tab" data-kind="transient" aria-selected="true">Transient failures</button>
+        <button role="tab" data-kind="silent" aria-selected="false">Silent wrong results</button>
+      </div>
+      <p class="note" id="kind-note"></p>
+      <svg id="dose-chart" class="chart" role="img" aria-label="Task success against injected fault rate, one line per arm"></svg>
+      <div class="legend" aria-hidden="true">
+        <span><b class="dot" style="background:#8a8d94"></b>no verifier</span><span><b class="dot" style="background:#e9e9e4"></b>retry only</span><span><b class="dot go"></b>full verifier</span>
+      </div>
+      <div class="tbl" id="dose-table"></div>
+      <p class="note" id="results-empty" hidden>No results file found.</p>
+    </section>
+  </main>
 
   <main class="layout">
     <section class="stage" aria-label="Agent run">
