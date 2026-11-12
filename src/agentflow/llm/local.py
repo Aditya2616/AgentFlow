@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -20,17 +21,27 @@ _LOAD_LOCK = threading.Lock()
 _MODELS: dict[tuple[str, str, str], tuple[Any, Any]] = {}
 
 
-def resolve_runtime(device: str = "auto", dtype: str = "auto") -> tuple[str, str]:
+def _torch_cuda_available() -> bool:
+    """True if torch is installed and sees a CUDA device. Torch is imported here, not at module import."""
+    try:
+        import torch
+    except ImportError:
+        return False
+    return bool(torch.cuda.is_available())
+
+
+def resolve_runtime(
+    device: str = "auto", dtype: str = "auto", cuda_available: Callable[[], bool] | None = None
+) -> tuple[str, str]:
     """Pick a device and dtype. "auto" means cuda in float16 if CUDA is available, else cpu in bfloat16.
 
-    The AGENTFLOW_DEVICE and AGENTFLOW_DTYPE environment variables override "auto".
+    The AGENTFLOW_DEVICE and AGENTFLOW_DTYPE environment variables override "auto". `cuda_available` is a probe
+    that tests can inject, so this function needs no torch installed.
     """
-    import torch
-
     device = os.environ.get("AGENTFLOW_DEVICE", "") if device == "auto" else device
     dtype = os.environ.get("AGENTFLOW_DTYPE", "") if dtype == "auto" else dtype
     if not device or device == "auto":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = "cuda" if (cuda_available or _torch_cuda_available)() else "cpu"
     if not dtype or dtype == "auto":
         dtype = "float16" if device.startswith("cuda") else "bfloat16"
     return device, dtype

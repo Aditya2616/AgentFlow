@@ -140,14 +140,32 @@ def test_agent_runs_end_to_end_on_a_stubbed_openai_backend(tasks, settings):
 def test_runtime_selection_and_env_override(monkeypatch):
     from agentflow.llm.local import resolve_runtime
 
-    monkeypatch.setenv("AGENTFLOW_DEVICE", "cpu")
     monkeypatch.delenv("AGENTFLOW_DTYPE", raising=False)
-    assert resolve_runtime() == ("cpu", "bfloat16")
-    assert resolve_runtime("cpu", "float32") == ("cpu", "float32")
-    monkeypatch.delenv("AGENTFLOW_DEVICE")
-    device, dtype = resolve_runtime()
-    assert device in ("cpu", "cuda") and dtype in ("bfloat16", "float16")
+    monkeypatch.delenv("AGENTFLOW_DEVICE", raising=False)
+    # no torch needed: the probe is injected
+    assert resolve_runtime(cuda_available=lambda: True) == ("cuda", "float16")
+    assert resolve_runtime(cuda_available=lambda: False) == ("cpu", "bfloat16")
+    assert resolve_runtime("cpu", "float32", cuda_available=lambda: True) == ("cpu", "float32")
+    monkeypatch.setenv("AGENTFLOW_DEVICE", "cpu")
+    assert resolve_runtime(cuda_available=lambda: True) == ("cpu", "bfloat16")
+    monkeypatch.setenv("AGENTFLOW_DTYPE", "float32")
+    assert resolve_runtime(cuda_available=lambda: True) == ("cpu", "float32")
 
+
+def test_default_probe_works_when_torch_is_missing(monkeypatch):
+    import builtins
+
+    from agentflow.llm import local
+
+    real = builtins.__import__
+
+    def no_torch(name, *a, **kw):
+        if name == "torch":
+            raise ImportError("no torch")
+        return real(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", no_torch)
+    assert local._torch_cuda_available() is False
 
 def test_hosted_adapters_need_an_explicit_model_id(monkeypatch):
     import pytest
