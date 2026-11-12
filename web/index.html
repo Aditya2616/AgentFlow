@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AgentFlow: plan, act, verify</title>
+  <meta name="description" content="An agent that plans a multi-step task, calls five tools and verifies every result before the next step. Live graph, trace log and replay.">
+  <meta name="theme-color" content="#07080a">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2307080a'/%3E%3Ccircle cx='9' cy='16' r='4' fill='%23d7ff3f'/%3E%3Crect x='20' y='9' width='6' height='6' rx='3' fill='none' stroke='%23d7ff3f'/%3E%3Crect x='20' y='18' width='6' height='6' rx='3' fill='none' stroke='%23d7ff3f'/%3E%3Cpath d='M13 16 L20 12 M13 16 L20 21' stroke='%23d7ff3f' fill='none'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&family=Instrument+Serif:ital@1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="./" aria-label="AgentFlow home">Agent<em>Flow</em></a>
+    <span class="tagline">plan <i>→</i> act <i>→</i> verify</span>
+    <span class="badge" id="badge" role="status">loading</span>
+  </header>
+
+  <main class="layout">
+    <section class="stage" aria-label="Agent run">
+      <div class="panel controls" id="controls">
+        <div class="seg" role="tablist" aria-label="Mode">
+          <button role="tab" id="tab-recorded" aria-selected="true" data-mode="recorded">Recorded runs</button>
+          <button role="tab" id="tab-live" aria-selected="false" data-mode="live">Live run</button>
+        </div>
+
+        <div id="recorded-panel" class="mode-panel">
+          <label class="field"><span class="lab">Recording</span>
+            <select id="rec-select"></select>
+          </label>
+          <p class="note" id="rec-note"></p>
+        </div>
+
+        <form id="live-panel" class="mode-panel" hidden>
+          <label class="field"><span class="lab">Task</span>
+            <select id="task-select"></select>
+          </label>
+          <label class="field" id="custom-field" hidden><span class="lab">Your task</span>
+            <textarea id="task-custom" rows="2" maxlength="500" placeholder="For example: how many orders were returned in June?"></textarea>
+          </label>
+          <div class="row2">
+            <label class="field"><span class="lab">Model</span>
+              <select id="llm-select"></select>
+            </label>
+            <label class="field"><span class="lab">Tool faults</span>
+              <select id="fault-select">
+                <option value="0">none</option>
+                <option value="0.25">25% fail once</option>
+                <option value="0.5">50% fail once</option>
+              </select>
+            </label>
+          </div>
+          <div class="row2">
+            <label class="field" id="mistake-field" hidden><span class="lab">Scripted mistake</span>
+              <select id="mistake-select">
+                <option value="none">none</option>
+                <option value="bad_args">wrong arguments first</option>
+                <option value="bad_plan">wrong plan first</option>
+              </select>
+            </label>
+            <label class="switch"><input type="checkbox" id="verifier-on" checked><span class="track"></span><span>Verifier</span></label>
+          </div>
+          <button class="btn primary" id="run-btn" type="submit">Run task</button>
+          <p class="note" id="live-note"></p>
+        </form>
+      </div>
+
+      <div class="plan" id="plan" aria-label="Plan" aria-live="polite"></div>
+
+      <div class="panel graph-panel">
+        <div id="graph" class="graph"></div>
+        <div class="legend" aria-hidden="true">
+          <span><b class="dot go"></b>request</span><span><b class="dot ok"></b>result passed</span><span><b class="dot bad"></b>error, retry or re-plan</span>
+        </div>
+      </div>
+
+      <div class="transport" id="transport">
+        <button class="btn round" id="play-btn" aria-label="Play"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path id="play-icon" d="M8 5v14l11-7z" fill="currentColor"/></svg></button>
+        <div class="scrub">
+          <input type="range" id="scrubber" min="0" max="1000" value="0" aria-label="Position in the run">
+          <div class="times"><span id="t-now">0.0 s</span><span id="t-total"></span></div>
+        </div>
+        <div class="seg small" id="speed" role="group" aria-label="Speed">
+          <button data-speed="0.5">0.5x</button><button data-speed="1" class="on">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button>
+        </div>
+      </div>
+
+      <div class="panel answer" id="answer" hidden>
+        <div class="answer-head"><span class="lab">Answer</span><span class="chip" id="status-chip"></span></div>
+        <p id="answer-text"></p>
+        <dl class="stats" id="stats"></dl>
+      </div>
+    </section>
+
+    <aside class="trace" id="trace" aria-label="Trace log">
+      <button class="handle" id="sheet-handle" aria-expanded="false" aria-controls="rows"><span class="grip"></span><span class="h-title">Trace</span><span class="h-sum" id="trace-sum">0 events</span></button>
+      <div class="trace-head">
+        <div class="chips" id="filters" role="group" aria-label="Filter trace">
+          <button class="on" data-f="all">all</button><button data-f="llm">model</button><button data-f="tool">tools</button><button data-f="verify">verify</button>
+        </div>
+        <a class="dl" id="dl" href="#" download hidden>JSONL</a>
+      </div>
+      <ol class="rows" id="rows" data-filter="all"></ol>
+    </aside>
+  </main>
+
+  <footer class="foot">
+    <span>Built by <a href="https://adityajain16.vercel.app">Aditya Jain</a></span>
+    <a href="https://github.com/Aditya2616/AgentFlow">github.com/Aditya2616/AgentFlow</a>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
