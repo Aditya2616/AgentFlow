@@ -84,9 +84,9 @@ git clone https://github.com/Aditya2616/AgentFlow
 cd AgentFlow
 python -m venv .venv
 .venv/Scripts/activate            # Windows. On Linux/macOS: source .venv/bin/activate
-pip install -e ".[local,dev]"     # add ",hybrid" for MiniLM hybrid search
+pip install -e ".[local,dev]"     # "local" adds torch and transformers for the real model; add ",hybrid" for MiniLM search
 
-pytest                            # fast tests, offline, no model
+pytest                            # fast tests, offline, no model (they also pass with just ".[dev]", which is what CI installs)
 agentflow run "How many orders have the status shipped?" --llm scripted
 agentflow run "How many orders have the status shipped?" --llm local
 agentflow serve                   # UI and API on http://127.0.0.1:8102
