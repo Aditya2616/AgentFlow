@@ -20,21 +20,21 @@ function el(tag, attrs, parent) {
 
 function draw(svg, data, kind) {
   svg.replaceChildren();
-  const W = 640, H = 300, L = 46, T = 14, PW = W - L - 16, PH = H - T - 48;
+  const W = 640, H = 320, L = 56, T = 14, PW = W - L - 18, PH = H - T - 56;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   const rates = [...new Set(data.cells.map((c) => c.fault_rate).concat([0]))].sort((a, b) => a - b);
   const xmax = Math.max(...rates) || 1;
   const X = (r) => L + (PW * r) / xmax, Y = (v) => T + PH * (1 - v);
   for (const g of [0, 0.25, 0.5, 0.75, 1]) {
     el("line", { x1: L, x2: L + PW, y1: Y(g), y2: Y(g), stroke: "rgba(237,236,230,.1)" }, svg);
-    const t = el("text", { x: L - 8, y: Y(g) + 4, "text-anchor": "end", fill: "#8a8d94", "font-size": 11 }, svg);
+    const t = el("text", { x: L - 8, y: Y(g) + 4, "text-anchor": "end", fill: "#8a8d94", "font-size": 15 }, svg);
     t.textContent = `${g * 100}%`;
   }
   for (const r of rates) {
-    const t = el("text", { x: X(r), y: T + PH + 18, "text-anchor": "middle", fill: "#8a8d94", "font-size": 11 }, svg);
+    const t = el("text", { x: X(r), y: T + PH + 22, "text-anchor": "middle", fill: "#8a8d94", "font-size": 15 }, svg);
     t.textContent = `${Math.round(r * 100)}%`;
   }
-  const lab = el("text", { x: L + PW / 2, y: H - 8, "text-anchor": "middle", fill: "#8a8d94", "font-size": 11 }, svg);
+  const lab = el("text", { x: L + PW / 2, y: H - 10, "text-anchor": "middle", fill: "#8a8d94", "font-size": 15 }, svg);
   lab.textContent = "injected fault rate per tool call";
   for (const arm of ARMS) {
     const pts = rates.map((r) => pick(data.cells, kind, r, arm)).filter(Boolean);

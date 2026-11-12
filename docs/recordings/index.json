@@ -51,6 +51,26 @@
    "note": "Qwen3-0.6B on a GPU in float16 with 30 percent injected transient tool failures, retried by the verifier. Timings come from cached model replies, so they are not latency figures."
   },
   {
+   "file": "local-silent_p50_full-t04-s1.jsonl",
+   "title": "Real model, a silently empty search result is caught",
+   "kind": "local",
+   "model": "Qwen/Qwen3-0.6B",
+   "date": "2026-11-12",
+   "task": "Which region has the most customers?",
+   "status": "completed",
+   "note": "Qwen3-0.6B on a GPU in float16 with silent faults injected. The search tool returns no hits without any error. A retry-only run passes the empty result on and fails this task; the verifier's has_hits check sends it back and the second try passes. Timings are replayed from cached model replies."
+  },
+  {
+   "file": "local-transient_p50_full-t07-s0.jsonl",
+   "title": "Real model, 50 percent tool failures then a re-plan",
+   "kind": "local",
+   "model": "Qwen/Qwen3-0.6B",
+   "date": "2026-11-12",
+   "task": "Read onboarding.md and tell me how many days a new hire has to complete security training.",
+   "status": "completed",
+   "note": "Qwen3-0.6B on a GPU in float16 with 50 percent injected transient failures. The verifier retries, then asks for a new plan and finishes. A retry-only run fails this same task and seed once its retries are used up. Timings are replayed from cached model replies."
+  },
+  {
    "file": "scripted-retry.jsonl",
    "title": "Scripted: wrong first argument, verifier retries",
    "kind": "scripted",

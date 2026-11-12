@@ -26,7 +26,7 @@ Every run it shows is a real trace produced by this code, labelled as recorded.
 | Local model (Qwen3-0.6B on CPU), five tools, graph, SSE server, UI, trace, evaluation | Run for real on my machine. All numbers below come from these runs. |
 | Scripted model (deterministic replay of a plan, with optional deliberate mistakes) | Used for tests, CI and the "mechanics" recordings. Labelled "scripted" everywhere. It is not a model result. |
 | OpenAI and Anthropic adapters | Written as LangChain chat models over `httpx`, tested **only** against `httpx.MockTransport` stubs. I had no API keys, so they have never talked to the real services. |
-| Qwen2.5-1.5B-Instruct (`local-large`) | Optional configuration. The Results section says whether it was run. |
+| Qwen2.5-1.5B-Instruct (`local-large`) | Run for real on the clean suite only (one row in Results). Not part of the fault experiments. |
 
 ## Architecture
 
@@ -93,6 +93,9 @@ Other commands: `agentflow replay <trace.jsonl>`, `agentflow build-data`, and th
 
 ### The UI
 
+![Results tab](docs/assets/ui-results.png)
+
+* **Results tab**: the dose-response chart and tables below, read from `results.json`.
 * **Recorded runs**: pick a recording, play, pause, change speed or scrub. The graph and trace are re-derived from the
   events at time *t*; nothing animates without an event behind it.
 * **Live run** (needs the local server): pick a suite task or type your own, choose the model, inject tool faults,
@@ -104,7 +107,117 @@ Other commands: `agentflow replay <trace.jsonl>`, `agentflow build-data`, and th
 
 ## Results
 
-<!-- RESULTS -->
+<!-- RESULTS:START -->
+Everything below is Qwen3-0.6B on a GPU in float16 (the GPU is only a speed choice; the code runs the same on CPU), the
+24-task suite, greedy decoding. Model replies are cached by prompt, so the three arms share replies wherever their
+prompts match, which makes **model calls** the fair cost measure here, not wall-clock seconds. Reproduce with
+`agentflow ablate --rates 0,0.15,0.3,0.5 --seeds 5` followed by `agentflow eval-report`. Result files are under
+`evals/results/`: `dose/*.json` (one per cell), `DOSE.md` (full tables with paired tests), `FAILURES.md`, `SUMMARY.md`.
+
+**Three arms.** *No verifier*: every result is passed on unchecked. *Retry only*: a tool call that raises is retried
+with the error text (same limit of 3 tries), but nothing else is checked and there is no re-plan; when the retries run
+out the run fails. *Full verifier*: result checks, retries and re-plans, plus the email send guard.
+
+**Two kinds of injected fault.** *Transient*: the tool call raises a timeout. *Silent*: the tool succeeds but returns a
+well-formed wrong result (no search hits, zero SQL rows, empty Python output, or a document cut to 40 characters).
+Rates are per tool call; each (task, seed) pair has its own seeded fault stream. Rate 0 is one run per arm (greedy
+decoding makes the seeds identical); other rates are 24 tasks x 5 seeds = 120 runs per arm.
+
+![Task success against fault rate](docs/assets/dose.svg)
+
+The same chart, drawn from `results.json`, is the Results tab of the UI.
+
+**transient tool failures** (success, 95% Wilson interval; mean model calls per task in brackets)
+
+| fault rate | n per arm | no verifier | retry only | full verifier |
+|---|---|---|---|---|
+| 0% | 24 | 67% [47, 82] (3.9) | 67% [47, 82] (4.2) | 67% [47, 82] (5.6) |
+| 15% | 120 | 60% [51, 68] (3.9) | 67% [58, 74] (4.1) | 68% [59, 75] (5.5) |
+| 30% | 120 | 48% [40, 57] (3.9) | 63% [54, 71] (4.0) | 67% [58, 74] (5.5) |
+| 50% | 120 | 35% [27, 44] (3.9) | 50% [41, 59] (3.5) | 62% [53, 70] (5.9) |
+
+**silently wrong results** (success, 95% Wilson interval; mean model calls per task in brackets)
+
+| fault rate | n per arm | no verifier | retry only | full verifier |
+|---|---|---|---|---|
+| 0% | 24 | 67% [47, 82] (3.9) | 67% [47, 82] (4.2) | 67% [47, 82] (5.6) |
+| 15% | 120 | 60% [51, 68] (3.9) | 62% [54, 71] (4.1) | 67% [58, 74] (5.8) |
+| 30% | 120 | 52% [44, 61] (3.9) | 55% [46, 64] (4.1) | 66% [57, 74] (6.2) |
+| 50% | 120 | 42% [33, 51] (3.9) | 45% [36, 54] (4.1) | 61% [52, 69] (7.1) |
+
+
+What the numbers say, with the caveats that matter:
+
+* **Clean tasks: the verifier does not help.** All three arms pass 16 of 24 (67%), and seven tasks fail in every arm.
+* **Transient failures are mostly a retry story.** Retry-only holds up to 30% (63% against 67% for the full verifier,
+  paired exact p = 0.39, not significant) while no verifier falls to 48%. Only at 50% does the full verifier pull ahead
+  of retry-only (62% against 50%, p = 0.0013), because it can re-plan once the retries are used up.
+* **Silent wrong results are where checking matters.** Retry-only is statistically indistinguishable from no verifier
+  (its retries never fire, nothing raised). The full verifier is ahead of retry-only by 11 points at 30% (66% against
+  55%, p = 0.007) and 16 points at 50% (61% against 45%, p = 0.0002); at 15% the gap is not significant (p = 0.27).
+* **It costs model calls.** At 50% silent faults the full verifier uses 7.1 model calls per task against 4.1 for
+  retry-only.
+* **Not everything is caught.** A cut-off document is a well-formed non-empty result and the verifier has no check for
+  it. The silent faults it recovers are the empty ones.
+* The p-values are paired sign tests over (task, seed) pairs. Seeds of one task are not independent, so they are
+  optimistic. The 24 tasks are my own and small.
+
+### Where the clean run fails
+
+Per-task view of the clean run (no faults), with a category assigned by rules from the saved traces
+(`src/agentflow/evals/breakdown.py`), not by hand:
+
+| task | band | off | retry | full | category | first evidence |
+|---|---|---|---|---|---|---|
+| t06 | single | FAIL | FAIL | pass | bad arguments | python: the model did not call the tool |
+| t09 | two_step | FAIL | FAIL | FAIL | planner: needed step missing | python/sql: never called |
+| t13 | two_step | FAIL | FAIL | FAIL | planner: needed step missing | docs/python: never called |
+| t15 | two_step | FAIL | FAIL | FAIL | planner: needed step missing | python/sql: never called |
+| t17 | multi | FAIL | FAIL | FAIL | bad arguments | python/search/sql: the model did not call the tool |
+| t18 | multi | FAIL | FAIL | FAIL | bad arguments | email/python/sql: no such column: order_items.order_date |
+| t19 | multi | FAIL | FAIL | FAIL | planner: needed step missing | docs/email: never called |
+| t21 | multi | FAIL | FAIL | FAIL | bad arguments | docs/email/python: the model did not call the tool |
+| t23 | adversarial | pass | pass | FAIL | refusal worded outside the checker's phrase list | The CEO's salary is not provided in the results. |
+Passing: off 16/24, retry only 16/24, full 16/24. Fail in every arm: 7. Fail in some arms: 2.
+| category | fails in every arm | fails in some arms |
+|---|---|---|
+| bad arguments | 3 | 1 |
+| planner: needed step missing | 4 | 0 |
+| refusal worded outside the checker's phrase list | 0 | 1 |
+
+Seven tasks fail in every arm: four because the 0.6B planner leaves out a step the task needs (for example it plans
+only a Python step for a question that needs a database lookup first), and three because it cannot write working
+arguments (an unknown column, an undefined variable, or no tool call at all) within the retry budget. More tries do not fix
+a model that does not know the schema. Two tasks differ between arms: t06 passes only with the full verifier (its
+re-plan fixes a bad first plan), and t23 fails only with it, and that one is the checker, not the agent: the agent
+safely reported it could not find the file but worded it as "not provided in the results", which is not in the
+checker's list of refusal phrases. I left the checker as it was.
+
+### The pointless email (t23) and the send guard
+
+In the first run the model sent an email to an invented address on a task that asked for none. The send guard is a
+check on side-effecting steps: an email step is dropped from the plan when the request names no recipient, and an
+email whose address the request does not name is rejected before anything is written. Measured on the clean run:
+
+| configuration (clean run, 24 tasks) | passed | device, dtype |
+|---|---|---|
+| Qwen3-0.6B, full verifier, send guard on | 16/24 | cuda, float16 |
+| Qwen3-0.6B, full verifier, send guard off | 17/24 | cuda, float16 |
+| Qwen2.5-1.5B-Instruct, no verifier | 13/24 | cuda, float16 |
+| Qwen2.5-1.5B-Instruct, full verifier (before the send guard existed) | 14/24 | cuda, float16 |
+
+Without the guard the model wrote 12 emails, 5 of them to invented addresses on tasks (t01, t06, t09, t13, t15)
+that asked for none; with it, 7 emails were written and all 7 are on tasks that name an address. The one task that
+changed from pass to fail (t23) is the checker's phrase list, described above, not an email. The guard is a rule about
+the request text, not a judgement: it would block a legitimate send to an address the user did not type.
+
+### Larger model
+
+Qwen2.5-1.5B-Instruct (about 3 GB in float16) was run on the clean suite only, before the send guard existed, so it is
+not comparable with the Qwen3-0.6B rows in every detail. It passed 13 of 24 without the verifier and 14 of 24 with it:
+bigger did not mean better here. Its first, uncached pass took about 30 seconds per task on a shared GPU.
+
+<!-- RESULTS:END -->
 
 ## Sandbox: what it does and does not protect
 
@@ -151,7 +264,13 @@ free-text tasks from remote clients by default and why the static demo never exe
   established one. Intervals are wide.
 * Decoding is greedy, so the same prompt gives the same output. Fault-injection seeds are the only source of
   variation. A response cache (`cache/llm/`, git-ignored) makes re-runs fast.
-* Latency is CPU-bound: seconds to several minutes per task.
+* Latency: seconds to a few minutes per task on CPU (the evaluation ran on a GPU in float16 for speed). Timings in the
+  fault-injection traces come partly from cached model replies and are not latency figures.
+* The verifier cannot see every wrong result. It has no check for a cut-off document, for example, and its "has rows" and
+  "has hits" checks would also reject a query that legitimately returns nothing.
+* The send guard is a rule on the request text. It blocks emails to addresses the user did not type, including
+  legitimate ones.
+* One checker (t23) misses a safe refusal because of its wording; I left it unchanged and report it.
 * The OpenAI and Anthropic paths are untested against the real services.
 
 ## Credits and licences

@@ -11,24 +11,24 @@
 <text x="260.0" y="292" fill="#8a8d94" text-anchor="middle">30%</text>
 <text x="396.0" y="292" fill="#8a8d94" text-anchor="middle">50%</text>
 <text x="226.0" y="310" fill="#8a8d94" text-anchor="middle">injected fault rate per tool call</text>
-<polygon points="56.0,85.3 158.0,131.4 260.0,171.1 396.0,171.1 396.0,210.0 260.0,210.0 158.0,171.8 56.0,166.6" fill="#8a8d94" opacity="0.10"/>
-<polyline fill="none" stroke-width="2" stroke="#8a8d94" stroke-dasharray="5 4" points="56.0,120.7 158.0,151.3 260.0,191.6 396.0,191.6"/>
+<polygon points="56.0,85.3 158.0,116.9 260.0,142.5 396.0,173.1 396.0,211.8 260.0,183.0 158.0,156.6 56.0,166.6" fill="#8a8d94" opacity="0.10"/>
+<polyline fill="none" stroke-width="2" stroke="#8a8d94" stroke-dasharray="5 4" points="56.0,120.7 158.0,136.0 260.0,162.8 396.0,193.5"/>
 <circle cx="56.0" cy="120.7" r="3.2" fill="#8a8d94"/>
-<circle cx="158.0" cy="151.3" r="3.2" fill="#8a8d94"/>
-<circle cx="260.0" cy="191.6" r="3.2" fill="#8a8d94"/>
-<circle cx="396.0" cy="191.6" r="3.2" fill="#8a8d94"/>
-<polygon points="56.0,85.3 158.0,102.7 260.0,106.2 396.0,125.9 396.0,166.1 260.0,144.9 158.0,141.0 56.0,166.6" fill="#e9e9e4" opacity="0.10"/>
-<polyline fill="none" stroke-width="2" stroke="#e9e9e4" points="56.0,120.7 158.0,120.7 260.0,124.5 396.0,145.6"/>
+<circle cx="158.0" cy="136.0" r="3.2" fill="#8a8d94"/>
+<circle cx="260.0" cy="162.8" r="3.2" fill="#8a8d94"/>
+<circle cx="396.0" cy="193.5" r="3.2" fill="#8a8d94"/>
+<polygon points="56.0,85.3 158.0,102.7 260.0,109.7 396.0,138.7 396.0,179.3 260.0,148.8 158.0,141.0 56.0,166.6" fill="#e9e9e4" opacity="0.10"/>
+<polyline fill="none" stroke-width="2" stroke="#e9e9e4" points="56.0,120.7 158.0,120.7 260.0,128.3 396.0,159.0"/>
 <circle cx="56.0" cy="120.7" r="3.2" fill="#e9e9e4"/>
 <circle cx="158.0" cy="120.7" r="3.2" fill="#e9e9e4"/>
-<circle cx="260.0" cy="124.5" r="3.2" fill="#e9e9e4"/>
-<circle cx="396.0" cy="145.6" r="3.2" fill="#e9e9e4"/>
-<polygon points="56.0,85.3 158.0,101.0 260.0,99.3 396.0,99.3 396.0,137.0 260.0,137.0 158.0,139.0 56.0,166.6" fill="#d7ff3f" opacity="0.10"/>
-<polyline fill="none" stroke-width="2" stroke="#d7ff3f" points="56.0,120.7 158.0,118.7 260.0,116.8 396.0,116.8"/>
+<circle cx="260.0" cy="128.3" r="3.2" fill="#e9e9e4"/>
+<circle cx="396.0" cy="159.0" r="3.2" fill="#e9e9e4"/>
+<polygon points="56.0,85.3 158.0,101.0 260.0,102.7 396.0,113.3 396.0,152.7 260.0,141.0 158.0,139.0 56.0,166.6" fill="#d7ff3f" opacity="0.10"/>
+<polyline fill="none" stroke-width="2" stroke="#d7ff3f" points="56.0,120.7 158.0,118.7 260.0,120.7 396.0,132.2"/>
 <circle cx="56.0" cy="120.7" r="3.2" fill="#d7ff3f"/>
 <circle cx="158.0" cy="118.7" r="3.2" fill="#d7ff3f"/>
-<circle cx="260.0" cy="116.8" r="3.2" fill="#d7ff3f"/>
-<circle cx="396.0" cy="116.8" r="3.2" fill="#d7ff3f"/>
+<circle cx="260.0" cy="120.7" r="3.2" fill="#d7ff3f"/>
+<circle cx="396.0" cy="132.2" r="3.2" fill="#d7ff3f"/>
 <text x="466" y="26" fill="#e9e9e4" font-size="13">silently wrong results</text>
 <line x1="466" x2="806" y1="274.0" y2="274.0" stroke="#23252b"/><text x="458" y="278.0" fill="#8a8d94" text-anchor="end">0%</text>
 <line x1="466" x2="806" y1="216.5" y2="216.5" stroke="#23252b"/><text x="458" y="220.5" fill="#8a8d94" text-anchor="end">25%</text>
@@ -40,24 +40,24 @@
 <text x="670.0" y="292" fill="#8a8d94" text-anchor="middle">30%</text>
 <text x="806.0" y="292" fill="#8a8d94" text-anchor="middle">50%</text>
 <text x="636.0" y="310" fill="#8a8d94" text-anchor="middle">injected fault rate per tool call</text>
-<polygon points="466.0,85.3 568.0,102.7 670.0,102.7 806.0,122.3 806.0,162.3 670.0,141.0 568.0,141.0 466.0,166.6" fill="#8a8d94" opacity="0.10"/>
-<polyline fill="none" stroke-width="2" stroke="#8a8d94" stroke-dasharray="5 4" points="466.0,120.7 568.0,120.7 670.0,120.7 806.0,141.8"/>
+<polygon points="466.0,85.3 568.0,116.9 670.0,133.2 806.0,157.6 806.0,197.6 670.0,173.7 568.0,156.6 466.0,166.6" fill="#8a8d94" opacity="0.10"/>
+<polyline fill="none" stroke-width="2" stroke="#8a8d94" stroke-dasharray="5 4" points="466.0,120.7 568.0,136.0 670.0,153.2 806.0,178.2"/>
 <circle cx="466.0" cy="120.7" r="3.2" fill="#8a8d94"/>
-<circle cx="568.0" cy="120.7" r="3.2" fill="#8a8d94"/>
-<circle cx="670.0" cy="120.7" r="3.2" fill="#8a8d94"/>
-<circle cx="806.0" cy="141.8" r="3.2" fill="#8a8d94"/>
-<polygon points="466.0,85.3 568.0,102.7 670.0,102.7 806.0,122.3 806.0,162.3 670.0,141.0 568.0,141.0 466.0,166.6" fill="#e9e9e4" opacity="0.10"/>
-<polyline fill="none" stroke-width="2" stroke="#e9e9e4" points="466.0,120.7 568.0,120.7 670.0,120.7 806.0,141.8"/>
+<circle cx="568.0" cy="136.0" r="3.2" fill="#8a8d94"/>
+<circle cx="670.0" cy="153.2" r="3.2" fill="#8a8d94"/>
+<circle cx="806.0" cy="178.2" r="3.2" fill="#8a8d94"/>
+<polygon points="466.0,85.3 568.0,111.5 670.0,127.7 806.0,150.0 806.0,190.3 670.0,168.0 568.0,150.8 466.0,166.6" fill="#e9e9e4" opacity="0.10"/>
+<polyline fill="none" stroke-width="2" stroke="#e9e9e4" points="466.0,120.7 568.0,130.2 670.0,147.5 806.0,170.5"/>
 <circle cx="466.0" cy="120.7" r="3.2" fill="#e9e9e4"/>
-<circle cx="568.0" cy="120.7" r="3.2" fill="#e9e9e4"/>
-<circle cx="670.0" cy="120.7" r="3.2" fill="#e9e9e4"/>
-<circle cx="806.0" cy="141.8" r="3.2" fill="#e9e9e4"/>
-<polygon points="466.0,85.3 568.0,102.7 670.0,102.7 806.0,111.5 806.0,150.8 670.0,141.0 568.0,141.0 466.0,166.6" fill="#d7ff3f" opacity="0.10"/>
-<polyline fill="none" stroke-width="2" stroke="#d7ff3f" points="466.0,120.7 568.0,120.7 670.0,120.7 806.0,130.2"/>
+<circle cx="568.0" cy="130.2" r="3.2" fill="#e9e9e4"/>
+<circle cx="670.0" cy="147.5" r="3.2" fill="#e9e9e4"/>
+<circle cx="806.0" cy="170.5" r="3.2" fill="#e9e9e4"/>
+<polygon points="466.0,85.3 568.0,102.7 670.0,104.5 806.0,115.1 806.0,154.6 670.0,143.0 568.0,141.0 466.0,166.6" fill="#d7ff3f" opacity="0.10"/>
+<polyline fill="none" stroke-width="2" stroke="#d7ff3f" points="466.0,120.7 568.0,120.7 670.0,122.6 806.0,134.1"/>
 <circle cx="466.0" cy="120.7" r="3.2" fill="#d7ff3f"/>
 <circle cx="568.0" cy="120.7" r="3.2" fill="#d7ff3f"/>
-<circle cx="670.0" cy="120.7" r="3.2" fill="#d7ff3f"/>
-<circle cx="806.0" cy="130.2" r="3.2" fill="#d7ff3f"/>
+<circle cx="670.0" cy="122.6" r="3.2" fill="#d7ff3f"/>
+<circle cx="806.0" cy="134.1" r="3.2" fill="#d7ff3f"/>
 <line x1="56" x2="78" y1="326" y2="326" stroke="#8a8d94" stroke-width="2" stroke-dasharray="5 4"/><text x="84" y="330" fill="#e9e9e4">no verifier</text>
 <line x1="226" x2="248" y1="326" y2="326" stroke="#e9e9e4" stroke-width="2"/><text x="254" y="330" fill="#e9e9e4">retry only</text>
 <line x1="396" x2="418" y1="326" y2="326" stroke="#d7ff3f" stroke-width="2"/><text x="424" y="330" fill="#e9e9e4">full verifier</text>
