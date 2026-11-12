@@ -48,7 +48,7 @@ def parse_plan(text: str, max_steps: int) -> list[PlanStep]:
 def fallback_plan(task: str) -> list[PlanStep]:
     """Keyword router used only when the model cannot produce a valid plan twice."""
     t = task.lower()
-    if re.search(r"\b(order|customer|revenue|region|product|sold|sales|database)\b", t):
+    if re.search(r"\b(orders?|customers?|revenue|regions?|products?|sold|sales|database)\b", t):
         tool = "sql"
     elif re.search(r"\b\d+\s*[-+*/^]\s*\d+|compute|calculate|prime|fibonacci\b", t):
         tool = "python"
@@ -78,8 +78,8 @@ def make_plan(
         HumanMessage(content=plan_user(task, done, failed, reason)),
     ]
     error = ""
-    for attempt in range(2):
-        ai = chat(messages, "plan", max_new_tokens=200)
+    for _ in range(2):
+        ai = chat(messages, "plan", max_new_tokens=140)
         try:
             return parse_plan(str(ai.content), max_steps), False
         except ValueError as exc:

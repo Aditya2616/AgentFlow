@@ -65,21 +65,20 @@ def load_chunks(corpus_dir: Path) -> list[Chunk]:
     chunks: list[Chunk] = []
     for path in sorted(corpus_dir.glob("*.md")):
         title, section, buf = path.stem, "", []
-
-        def flush(path=path, title=title) -> None:
-            body = " ".join(buf).strip()
-            if body:
-                chunks.append(Chunk(path.name, section, f"{title} / {section}: {body}" if section else body))
-
+        sections: list[tuple[str, list[str]]] = []
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.startswith("# "):
                 title = line[2:].strip()
             elif line.startswith("## "):
-                flush()
-                buf, section = [], line[3:].strip()
+                sections.append((section, buf))
+                section, buf = line[3:].strip(), []
             elif line.strip():
                 buf.append(line.strip())
-        flush()
+        sections.append((section, buf))
+        for name, lines in sections:
+            body = " ".join(lines).strip()
+            if body:
+                chunks.append(Chunk(path.name, name, f"{title} / {name}: {body}" if name else body))
     return chunks
 
 

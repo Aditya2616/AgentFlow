@@ -65,6 +65,8 @@ class ScriptedChat(AgentChatModel):
         phase = _grab(r"\[phase:(\w+)", system)
         if phase == "plan":
             replan = int(_grab(r"replan=(\d+)", system) or 0)
+            if not replan:  # a fresh run of this task: start its attempt counters over
+                self._attempts = {k: v for k, v in self._attempts.items() if k[0] != task}
             steps = script.replan if (replan and script.replan) else script.plan
             body = {"steps": [{"goal": g, "tool": t} for t, g in steps]}
             return self.result(json.dumps(body), [], 40, 40)

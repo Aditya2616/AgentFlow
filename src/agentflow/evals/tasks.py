@@ -315,7 +315,7 @@ def _email_number(to: str, subject_has: str, value: float):
 
 # ------------------------------------------------------------------ scripted mistakes
 WRONG_ARGS = {
-    "sql": {"query": "SELECT COUNT(*) FROM order"},
+    "sql": {"query": "SELECT COUNT(*) FROM sales_table"},
     "python": {"code": "print(undefined_name)"},
     "search": {"query": "zzzqq"},
     "docs": {"filename": "missing_file.md"},

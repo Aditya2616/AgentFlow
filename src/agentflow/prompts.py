@@ -12,7 +12,9 @@ from typing import Any
 from .data.build_db import SCHEMA_HINT
 from .tools.registry import TOOL_HELP
 
-PLAN_EXAMPLE = (
+PLAN_EXAMPLES = (
+    'Request: "What is the battery life of the Zeta watch?"\n'
+    '{"steps":[{"goal":"find the Zeta watch battery life","tool":"search"}]}\n'
     'Request: "How many customers are in the East region? Email the number to a@b.com"\n'
     '{"steps":[{"goal":"count customers in the East region","tool":"sql"},'
     '{"goal":"email the count to a@b.com","tool":"email"}]}'
@@ -23,12 +25,14 @@ def plan_system(files: list[str], replan: int = 0) -> str:
     tools = "\n".join(f"- {n}: {d}" for n, d in TOOL_HELP.items())
     return (
         f"[phase:plan replan={replan}]\n"
-        "You are a planner. Split the request into 1 to 4 steps. Each step uses exactly one tool.\n"
+        "You are a planner. Split the request into the fewest steps that answer it (1 to 4). "
+        "Each step uses exactly one tool. Only add an email step if the request asks for an email.\n"
         f"Tools:\n{tools}\n"
         f"Document files: {', '.join(files)}\n"
-        "Only use sql for questions about orders, customers, products or regions. "
-        "Use search for facts from policies and notes. Use python for arithmetic.\n"
-        f"Reply with JSON only. Example:\n{PLAN_EXAMPLE}"
+        "Use sql for questions about orders, customers, products or regions. "
+        "Use search for facts from policies and notes. Use docs only when a file name is given. "
+        "Use python for arithmetic.\n"
+        f"Reply with JSON only. Examples:\n{PLAN_EXAMPLES}"
     )
 
 
@@ -57,15 +61,20 @@ def act_system(step_id: str, tool: str, files: list[str]) -> str:
     extra = f" Files: {', '.join(files)}." if tool == "docs" else ""
     return (
         f"[phase:act step={step_id}]\n"
-        f"You call the {tool} tool to do the current step. Use facts and numbers from the previous "
-        f"results. Do not invent values. {ACT_HINTS[tool]}{extra}"
+        f"You must respond by calling the {tool} tool to do the current step. Use facts and numbers "
+        f"from the previous results. Do not invent values. {ACT_HINTS[tool]}{extra}"
     )
 
 
-def act_user(task: str, goal: str, prev: dict[str, Any], retry_reason: str | None) -> str:
+def act_user(
+    task: str, goal: str, prev: dict[str, Any], retry_reason: str | None, attempt: int = 1
+) -> str:
     out = f"Task: {task}\nStep: {goal}\nPrevious results: {json.dumps(prev, ensure_ascii=False)}"
     if retry_reason:
-        out += f"\nThe last attempt failed: {retry_reason}. Fix the arguments."
+        out += (
+            f"\nAttempt {attempt}. The last attempt failed: {retry_reason}. "
+            "Call the tool again with corrected arguments."
+        )
     return out
 
 

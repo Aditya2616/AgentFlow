@@ -163,7 +163,8 @@ class AgentRunner:
         msgs = [
             SystemMessage(content=act_system(step["id"], step["tool"], self.files)),
             HumanMessage(content=act_user(
-                state["task"], step["goal"], self._prev_compact(state), state.get("retry_reason")
+                state["task"], step["goal"], self._prev_compact(state), state.get("retry_reason"),
+                state.get("attempt", 0) + 1,
             )),
         ]
         ai = self.chat(msgs, "act", step["id"], tools=[tool], max_new_tokens=220)

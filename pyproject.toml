@@ -41,9 +41,9 @@ markers = ["slow: needs a downloaded model or a browser"]
 addopts = "-m 'not slow' -q"
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
-ignore = ["B008"]
+ignore = ["B008", "E501"]
