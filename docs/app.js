@@ -1,6 +1,7 @@
 // app.js: wires the controls, the live SSE stream, and recorded replay to the engine and graph.
 import { applyEvent, displayTimes, emptyState, TOOLS } from "./engine.js";
 import { Graph } from "./graph.js";
+import { initResults } from "./results.js";
 
 const $ = (s) => document.querySelector(s);
 const state = emptyState();
@@ -217,7 +218,20 @@ function setMode(m) {
   }
 }
 
+let resultsReady = false;
+async function setView(v) {
+  const res = v === "results";
+  if (res && !resultsReady) { await initResults(); resultsReady = true; }
+  document.body.classList.toggle("view-results", res);
+  $("#results").hidden = !res;
+  for (const b of document.querySelectorAll(".views button")) b.setAttribute("aria-selected", String(b.id === `view-${v}`));
+  if (res && player) player.pause();
+  history.replaceState(null, "", res ? "#results" : location.pathname + location.search);
+}
+
 function wire() {
+  $("#view-run").addEventListener("click", () => setView("run"));
+  $("#view-results").addEventListener("click", () => setView("results"));
   $("#tab-recorded").addEventListener("click", () => setMode("recorded"));
   $("#tab-live").addEventListener("click", () => { if (backend) setMode("live"); });
   $("#rec-select").addEventListener("change", (e) => loadRecording(recordings[e.target.selectedIndex], true));
@@ -276,6 +290,7 @@ async function boot() {
     const t = $("#tab-live"); t.disabled = true; t.title = "Live runs need the local server (pip install, then agentflow serve)";
     t.textContent = "Live run (local only)"; t.style.opacity = ".55";
   }
+  if (location.hash === "#results") setView("results");
   if (recordings.length) {
     await loadRecording(recordings[0], true);
   } else {

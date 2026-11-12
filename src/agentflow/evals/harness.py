@@ -76,7 +76,9 @@ def run_task(
         corpus_dir=settings.corpus_dir, db_path=db, outbox_dir=tmp / "outbox", runs_dir=settings.runs_dir,
         search_mode=settings.search_mode, threads=settings.threads,
     )
-    faults = FaultInjector(fault_p, seed, silent_p) if (fault_p or silent_p) else None
+    # one stream per (seed, task): without the task in the seed every task would see the same draws
+    fault_seed = seed * 1000 + int(task.id.lstrip("t") or 0)
+    faults = FaultInjector(fault_p, fault_seed, silent_p) if (fault_p or silent_p) else None
     tracer = Tracer(trace_path, listeners)
     runner = AgentRunner(llm, ToolBox(local, faults), tracer, cfg)
     before = _count_orders(db)

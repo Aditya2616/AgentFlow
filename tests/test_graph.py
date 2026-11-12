@@ -191,3 +191,15 @@ def test_send_guard_drops_an_email_step_the_request_never_asked_for(tasks, setti
     # with the guard off the same plan sends the email
     res, _ = _run(task, settings, cfg=AgentConfig(send_guard=False))
     assert (settings.outbox_dir / "index.jsonl").exists()
+
+
+def test_fault_streams_differ_between_tasks_with_the_same_seed(tasks, settings, tmp_path):
+    from agentflow.evals.harness import run_task
+
+    # with a shared stream every task would hit the same first draw; at p=0.5 over 24 tasks the counts must vary
+    counts = set()
+    for tid in ("t01", "t02", "t03", "t04", "t05", "t08", "t10", "t11"):
+        llm = ScriptedChat(scripts={tasks[tid].prompt: tasks[tid].script})
+        r = run_task(tasks[tid], llm, settings=settings, fault_p=0.5, seed=1)
+        counts.add(r.faults_transient)
+    assert len(counts) > 1

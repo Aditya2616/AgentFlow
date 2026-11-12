@@ -87,7 +87,8 @@ def main() -> None:
     index = OUT / "index.json"
     old = json.loads(index.read_text())["recordings"] if index.exists() else []
     keep_local = [e for e in old if e["kind"] == "local"]
-    entries = [add_local(s, Path(args.eval_dir)) for s in args.local] if args.local else keep_local
+    new = [add_local(spec, Path(args.eval_dir)) for spec in args.local]
+    entries = [e for e in keep_local if e["file"] not in {n["file"] for n in new}] + new  # earlier real recordings stay
     entries += record_scripted()
     entries.sort(key=lambda e: e["kind"] != "local")  # real-model recordings first
     index.write_text(json.dumps({"recordings": entries}, indent=1), encoding="utf-8")

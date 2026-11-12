@@ -102,7 +102,7 @@ def results_json(cells) -> dict:
     data = []
     for (kind, rate, arm), c in sorted(cells.items()):
         s = summarise(c)
-        data.append({"kind": kind, "rate": rate, "arm": arm, **{k: round(v, 4) for k, v in s.items()}})
+        data.append({"kind": kind, "fault_rate": rate, "arm": arm, **{k: round(v, 4) for k, v in s.items()}})
     meta = next(iter(cells.values())) if cells else {}
     return {"model": meta.get("model", ""), "device": meta.get("device", ""), "dtype": meta.get("dtype", ""),
             "cells": data}

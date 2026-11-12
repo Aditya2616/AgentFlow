@@ -99,6 +99,15 @@ def run_mode(label: str, live: bool, problems: list[str]) -> None:
                 time.sleep(1.0)
                 page.screenshot(path=SHOTS / f"{label}-{vname}-05-live.png", full_page=True)
                 check_page(page, f"{label}/{vname}/live", problems, vname == "phone")
+            # results view: the fault dose-response chart and table
+            page.click("#view-results")
+            page.wait_for_selector("#dose-chart polyline", state="attached", timeout=10000)
+            time.sleep(0.4)
+            page.screenshot(path=SHOTS / f"{label}-{vname}-06-results.png", full_page=True)
+            check_page(page, f"{label}/{vname}/results", problems, vname == "phone")
+            page.click("#kind-seg button[data-kind=silent]")
+            time.sleep(0.3)
+            page.screenshot(path=SHOTS / f"{label}-{vname}-07-results-silent.png", full_page=True)
             for e in errors:
                 problems.append(f"{label}/{vname}: console error: {e}")
             ctx.close()
@@ -133,7 +142,8 @@ def main() -> int:
         assets = ROOT / "docs" / "assets"
         assets.mkdir(parents=True, exist_ok=True)
         for src, dst in [("server-desktop-02-done.png", "ui-desktop.png"), ("server-phone-01-playing.png", "ui-phone.png"),
-                         ("server-phone-03-trace-sheet.png", "ui-phone-trace.png")]:
+                         ("server-phone-03-trace-sheet.png", "ui-phone-trace.png"),
+                         ("server-desktop-06-results.png", "ui-results.png")]:
             if (SHOTS / src).exists():
                 shutil.copyfile(SHOTS / src, assets / dst)
     print("\n".join(problems) if problems else "no console errors, no overflow, tap targets ok")
