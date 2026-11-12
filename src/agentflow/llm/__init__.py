@@ -31,11 +31,11 @@ def make_llm(
     if kind == "openai":
         from .openai_chat import OpenAIChat
 
-        return OpenAIChat.from_env()
+        return OpenAIChat.from_env(model_name=model)
     if kind == "anthropic":
         from .anthropic_chat import AnthropicChat
 
-        return AnthropicChat.from_env()
+        return AnthropicChat.from_env(model_name=model)
     if kind == "local":
         from .local import LocalChat
 

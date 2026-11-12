@@ -94,3 +94,13 @@ def text_of(m: BaseMessage) -> str:
     if isinstance(c, str):
         return c
     return "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in c)
+
+
+class ConfigurationError(RuntimeError):
+    """A hosted adapter is missing a setting it needs (for example the model id)."""
+
+
+def require_model(model_name: str, env_var: str) -> str:
+    if not model_name:
+        raise ConfigurationError(f"no model id configured: set {env_var} (or pass model_name) to the model id you want to use")
+    return model_name

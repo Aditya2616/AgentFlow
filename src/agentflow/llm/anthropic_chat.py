@@ -15,7 +15,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatResult
 from pydantic import ConfigDict
 
-from .base import AgentChatModel, make_tool_call, role_of, text_of
+from .base import AgentChatModel, make_tool_call, require_model, role_of, text_of
 from .openai_chat import LLMHTTPError
 
 
@@ -44,7 +44,7 @@ def to_anthropic(messages: list[BaseMessage]) -> tuple[str, list[dict]]:
 class AnthropicChat(AgentChatModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    model_name: str = "test-model"
+    model_name: str = ""  # no default: set ANTHROPIC_MODEL
     api_key: str = ""
     base_url: str = "https://api.anthropic.com"
     max_tokens: int = 400
@@ -54,7 +54,7 @@ class AnthropicChat(AgentChatModel):
     @classmethod
     def from_env(cls, **kw: Any) -> AnthropicChat:
         return cls(
-            model_name=os.environ.get("AGENTFLOW_ANTHROPIC_MODEL", "test-model"),
+            model_name=kw.pop("model_name", None) or os.environ.get("ANTHROPIC_MODEL", ""),
             api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
             **kw,
         )
@@ -74,7 +74,7 @@ class AnthropicChat(AgentChatModel):
             raise LLMHTTPError("ANTHROPIC_API_KEY is not set")
         system, msgs = to_anthropic(messages)
         body: dict[str, Any] = {
-            "model": self.model_name,
+            "model": require_model(self.model_name, "ANTHROPIC_MODEL"),
             "max_tokens": int(kwargs.get("max_new_tokens", self.max_tokens)),
             "messages": msgs,
         }

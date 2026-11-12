@@ -85,7 +85,8 @@ agentflow serve                   # UI and API on http://127.0.0.1:8102
 ```
 
 The scripted model only knows the prompts of the 24 suite tasks (see `src/agentflow/evals/tasks.py`); the local model
-takes any task. Copy `.env.example` to `.env` for the hosted adapters, which stay off unless you set a key.
+takes any task. Copy `.env.example` to `.env` for the hosted adapters, which stay off unless you set a key. They have no default model
+id: set `OPENAI_MODEL` or `ANTHROPIC_MODEL` (or pass `--model`), otherwise they raise a configuration error.
 The sample database (`data/sales.db`) is generated on first use from a seeded script.
 
 Other commands: `agentflow replay <trace.jsonl>`, `agentflow build-data`, and the evaluation below.

@@ -34,9 +34,9 @@ def test_parse_tool_calls_qwen_format():
 def test_scripted_and_adapters_are_langchain_chat_models(settings):
     from agentflow.llm.scripted import ScriptedChat
 
-    for m in (ScriptedChat(), OpenAIChat(api_key="k"), AnthropicChat(api_key="k")):
+    for m in (ScriptedChat(), OpenAIChat(api_key="k", model_name="test-model"), AnthropicChat(api_key="k", model_name="test-model")):
         assert isinstance(m, BaseChatModel)
-    bound = OpenAIChat(api_key="k").bind_tools(list(ToolBox(settings).tools.values())[:1])
+    bound = OpenAIChat(api_key="k", model_name="test-model").bind_tools(list(ToolBox(settings).tools.values())[:1])
     assert bound.kwargs["tools"][0]["function"]["name"] == "search"
 
 
@@ -58,7 +58,7 @@ def _openai_stub(captured: list):
 
 def test_openai_adapter_request_and_parsing(settings):
     seen: list[httpx.Request] = []
-    llm = OpenAIChat(api_key="sk-test", transport=_openai_stub(seen), base_url="https://example.test/v1")
+    llm = OpenAIChat(api_key="sk-test", model_name="test-model", transport=_openai_stub(seen), base_url="https://example.test/v1")
     ai = llm.invoke([SystemMessage(content="be brief"), HumanMessage(content="hi")])
     assert ai.content == "hello" and ai.usage_metadata["input_tokens"] == 11
     req = seen[0]
@@ -74,10 +74,10 @@ def test_openai_adapter_request_and_parsing(settings):
 
 
 def test_openai_adapter_errors():
-    llm = OpenAIChat(api_key="", transport=httpx.MockTransport(lambda r: httpx.Response(500)))
+    llm = OpenAIChat(api_key="", model_name="test-model", transport=httpx.MockTransport(lambda r: httpx.Response(500)))
     with pytest.raises(LLMHTTPError, match="not set"):
         llm.invoke([HumanMessage(content="x")])
-    llm = OpenAIChat(api_key="k", transport=httpx.MockTransport(lambda r: httpx.Response(429, text="slow down")))
+    llm = OpenAIChat(api_key="k", model_name="test-model", transport=httpx.MockTransport(lambda r: httpx.Response(429, text="slow down")))
     with pytest.raises(LLMHTTPError, match="429"):
         llm.invoke([HumanMessage(content="x")])
 
@@ -100,7 +100,7 @@ def test_anthropic_adapter_request_and_parsing(settings):
                         {"type": "tool_use", "id": "tu_1", "name": "sql", "input": {"query": "SELECT 2"}}],
             "usage": {"input_tokens": 20, "output_tokens": 7}})
 
-    llm = AnthropicChat(api_key="ak-test", transport=httpx.MockTransport(handler), base_url="https://example.test")
+    llm = AnthropicChat(api_key="ak-test", model_name="test-model", transport=httpx.MockTransport(handler), base_url="https://example.test")
     ai = llm.bind_tools([ToolBox(settings).tools["sql"]]).invoke(
         [SystemMessage(content="sys"), HumanMessage(content="count")])
     req = seen[0]
@@ -132,7 +132,7 @@ def test_agent_runs_end_to_end_on_a_stubbed_openai_backend(tasks, settings):
             msg = {"role": "assistant", "content": "There are 640 orders."}
         return httpx.Response(200, json={"choices": [{"message": msg}], "usage": {}})
 
-    llm = OpenAIChat(api_key="k", transport=httpx.MockTransport(handler))
+    llm = OpenAIChat(api_key="k", model_name="test-model", transport=httpx.MockTransport(handler))
     res = AgentRunner(llm, ToolBox(settings), Tracer()).run("How many orders are there?")
     assert res.status == "completed" and "640" in res.answer
 
@@ -147,3 +147,18 @@ def test_runtime_selection_and_env_override(monkeypatch):
     monkeypatch.delenv("AGENTFLOW_DEVICE")
     device, dtype = resolve_runtime()
     assert device in ("cpu", "cuda") and dtype in ("bfloat16", "float16")
+
+
+def test_hosted_adapters_need_an_explicit_model_id(monkeypatch):
+    import pytest
+
+    from agentflow.llm.base import ConfigurationError
+
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
+    for cls in (OpenAIChat, AnthropicChat):
+        llm = cls(api_key="k", transport=httpx.MockTransport(lambda r: httpx.Response(500)))
+        with pytest.raises(ConfigurationError, match="model id"):
+            llm.invoke("hi")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    assert OpenAIChat.from_env().model_name == "test-model"

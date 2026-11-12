@@ -16,7 +16,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatResult
 from pydantic import ConfigDict
 
-from .base import AgentChatModel, extract_json, make_tool_call, role_of, text_of
+from .base import AgentChatModel, extract_json, make_tool_call, require_model, role_of, text_of
 
 
 class LLMHTTPError(RuntimeError):
@@ -46,7 +46,7 @@ def to_openai_messages(messages: list[BaseMessage]) -> list[dict]:
 class OpenAIChat(AgentChatModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    model_name: str = "gpt-4.1-mini"
+    model_name: str = ""  # no default: set OPENAI_MODEL
     api_key: str = ""
     base_url: str = "https://api.openai.com/v1"
     max_tokens: int = 400
@@ -56,7 +56,7 @@ class OpenAIChat(AgentChatModel):
     @classmethod
     def from_env(cls, **kw: Any) -> OpenAIChat:
         return cls(
-            model_name=os.environ.get("AGENTFLOW_OPENAI_MODEL", "gpt-4.1-mini"),
+            model_name=kw.pop("model_name", None) or os.environ.get("OPENAI_MODEL", ""),
             api_key=os.environ.get("OPENAI_API_KEY", ""),
             base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
             **kw,
@@ -76,7 +76,7 @@ class OpenAIChat(AgentChatModel):
         if not self.api_key:
             raise LLMHTTPError("OPENAI_API_KEY is not set")
         body: dict[str, Any] = {
-            "model": self.model_name,
+            "model": require_model(self.model_name, "OPENAI_MODEL"),
             "messages": to_openai_messages(messages),
             "max_tokens": int(kwargs.get("max_new_tokens", self.max_tokens)),
             "temperature": 0,
