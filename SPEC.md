@@ -134,3 +134,13 @@ Fast/offline (CI): expectations and verifier verdict matrix; planner JSON parse/
 1. Default local model: Qwen3-0.6B (1.5 GB, measured) acceptable, or allow one 3 GB-class download (Qwen2.5-1.5B) for a better "real" demo?
 2. OK to skip `langchain-openai` / `langchain-anthropic` and write httpx adapters (fewer deps, stub-testable)?
 3. OK that the Windows sandbox is explicitly documented as best-effort (CI on Linux adds rlimits)?
+
+## 15. Changes made during the build
+
+* Max attempts per step is 3 (not 2), so two consecutive injected faults do not force a re-plan.
+* The optional LLM judge in the verifier was not built. Verification is deterministic only.
+* The planner writes only `goal` and `tool` per step. Arguments are filled at act time by a tool-bound model call that sees earlier results (this works better for small models than writing all arguments up front).
+* Email is checked before it is written (a "pre-flight" check), so a rejected email never reaches the outbox and retries cannot create duplicates.
+* Transient tool failures are retried with the same arguments and no extra model call.
+* The trace is streamed by a tracer sink (file plus listeners), not by LangGraph's `get_stream_writer`.
+* Hosted adapters call the HTTP APIs with `httpx` and are LangChain `BaseChatModel`s; they are tested only against `httpx.MockTransport`.
