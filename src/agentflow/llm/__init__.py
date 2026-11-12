@@ -19,7 +19,8 @@ def make_llm(
     scripts: dict | None = None,
     model: str | None = None,
     cache_dir: str | Path | None = None,
-    dtype: str = "bfloat16",
+    dtype: str = "auto",
+    device: str = "auto",
 ) -> BaseChatModel:
     settings = settings or Settings()
     kind = kind or os.environ.get("AGENTFLOW_LLM", "local")
@@ -40,6 +41,7 @@ def make_llm(
 
         return LocalChat(
             model_name=model or settings.local_model, threads=settings.threads, dtype=dtype,
+            device=device,
             cache_dir=str(cache_dir) if cache_dir else None,
         )
     raise ValueError(f"unknown LLM kind {kind!r}; choose one of {', '.join(KINDS)}")

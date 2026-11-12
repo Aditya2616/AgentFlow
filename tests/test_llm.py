@@ -135,3 +135,15 @@ def test_agent_runs_end_to_end_on_a_stubbed_openai_backend(tasks, settings):
     llm = OpenAIChat(api_key="k", transport=httpx.MockTransport(handler))
     res = AgentRunner(llm, ToolBox(settings), Tracer()).run("How many orders are there?")
     assert res.status == "completed" and "640" in res.answer
+
+
+def test_runtime_selection_and_env_override(monkeypatch):
+    from agentflow.llm.local import resolve_runtime
+
+    monkeypatch.setenv("AGENTFLOW_DEVICE", "cpu")
+    monkeypatch.delenv("AGENTFLOW_DTYPE", raising=False)
+    assert resolve_runtime() == ("cpu", "bfloat16")
+    assert resolve_runtime("cpu", "float32") == ("cpu", "float32")
+    monkeypatch.delenv("AGENTFLOW_DEVICE")
+    device, dtype = resolve_runtime()
+    assert device in ("cpu", "cuda") and dtype in ("bfloat16", "float16")

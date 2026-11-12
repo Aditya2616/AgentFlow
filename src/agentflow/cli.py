@@ -37,7 +37,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         scripts = {t.prompt: t.script for t in build_tasks(settings.ensure_db())}
     llm = make_llm(args.llm, settings=settings, scripts=scripts, model=args.model,
-                   cache_dir=args.cache)
+                   cache_dir=args.cache, device=args.device, dtype=args.dtype)
     trace = Path(args.trace) if args.trace else settings.runs_dir / "cli" / "last.jsonl"
     tracer = Tracer(trace, [_print_event] if not args.quiet else [])
     faults = FaultInjector(args.faults, args.seed) if args.faults else None
@@ -72,7 +72,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
             name,
             lambda tasks: make_llm(
                 args.llm, settings=settings, model=args.model, cache_dir=cache,
-                scripts={t.prompt: t.script for t in tasks},
+                device=args.device, dtype=args.dtype, scripts={t.prompt: t.script for t in tasks},
             ),
             settings=settings, verifier=ver, fault_p=args.faults, seeds=args.seeds,
             only=args.only.split(",") if args.only else None, out_dir=out,
@@ -113,6 +113,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--faults", type=float, default=0.0, help="probability of an injected transient tool failure")
     r.add_argument("--seed", type=int, default=0)
     r.add_argument("--trace", default=None)
+    r.add_argument("--device", default="auto", help="auto, cpu or cuda (env AGENTFLOW_DEVICE)")
+    r.add_argument("--dtype", default="auto", help="auto, float32, float16 or bfloat16 (env AGENTFLOW_DTYPE)")
     r.add_argument("--cache", default=None, help="directory for the local-model response cache")
     r.add_argument("--quiet", action="store_true")
     r.set_defaults(fn=cmd_run)
@@ -131,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--only", default=None, help="comma separated task ids")
     e.add_argument("--name", default=None)
     e.add_argument("--out", default=None)
+    e.add_argument("--device", default="auto", help="auto, cpu or cuda (env AGENTFLOW_DEVICE)")
+    e.add_argument("--dtype", default="auto", help="auto, float32, float16 or bfloat16 (env AGENTFLOW_DTYPE)")
     e.add_argument("--cache", default=None)
     e.set_defaults(fn=cmd_eval)
 

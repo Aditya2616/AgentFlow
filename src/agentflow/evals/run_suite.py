@@ -61,11 +61,14 @@ def run_suite(
             rows.append(r.to_dict())
             progress(f"[{name}] {t.id} seed {seed}: {'ok' if r.success else 'FAIL'} "
                      f"({r.status}, {r.acts} acts, {r.retries} retries, {r.replans} replans, {r.seconds}s)")
+    rt = llm.runtime() if hasattr(llm, "runtime") else {}
     k = sum(1 for r in rows if r["success"])
     lo, hi = wilson(k, len(rows))
     result = {
         "name": name,
         "model": getattr(llm, "model_name", "unknown"),
+        "device": rt.get("device", "n/a"),
+        "dtype": rt.get("dtype", "n/a"),
         "verifier": verifier,
         "fault_p": fault_p,
         "seeds": seeds,
