@@ -1,6 +1,6 @@
-# AgentFlow: research notes
+﻿# AgentFlow: research notes
 
-Research date: 2026-11-12. Items marked (measured) were run on this machine (12 logical cores, CPU-only PyTorch 2.11, transformers 5.7). Items marked (reported) come from web sources I could not verify myself.
+Research date: 2026-11-12. Items marked (measured) were run on my development PC (12 logical cores, CPU-only PyTorch 2.11, transformers 5.7). Items marked (reported) come from web sources I could not verify myself.
 
 ## 1. Agent patterns
 
@@ -13,9 +13,9 @@ Research date: 2026-11-12. Items marked (measured) were run on this machine (12 
 | LangGraph plan-and-execute / reflection tutorials (https://blog.langchain.com/reflection-agents, https://docs.langchain.com/oss/python/langgraph) | Planner, executor, replanner as graph nodes | Direct template for the graph. Their replanner is an LLM call; mine is preceded by a deterministic verifier. |
 | Verifiers and critics (CRITIC, Gou et al. 2023, https://arxiv.org/abs/2305.11738) | Use tools to check outputs rather than self-assessing | Verifier prefers deterministic checks (schema, row counts, arithmetic re-computation, "file exists", "outbox has one message") over asking the same small model "is this right?". LLM self-verification of a 0.6B model is not trustworthy, so it is optional and off by default. |
 
-Finding: no popular open-source agent framework has a first-class *verify-before-next-step* node with typed outcomes. Most put it inside the replanner prompt. Making it a separate node with outcomes `pass | retry | replan | fail` is both the differentiator and what the site's scene shows (packet goes through the verifier and back).
+Takeaway: LangGraph's reflection and plan-and-execute examples, and the papers above, already cover the idea of checking results before moving on. I make that check an explicit node with typed outcomes (`pass | retry | replan | fail`) so it can be tested and drawn on its own, which is also what the portfolio scene shows (a packet goes through the verifier and back).
 
-## 2. Current library APIs (checked here)
+## 2. Current library APIs (checked when I wrote this)
 
 Installed: langchain 1.2.17, langchain-core 1.3.2, langgraph 1.1.10, langgraph-prebuilt 1.0.13, openai 2.33.0. `anthropic`, `langchain-openai`, `langchain-anthropic`, `rank_bm25` are NOT installed.
 
@@ -36,17 +36,17 @@ I ran a 10-prompt probe (one prompt per tool, two per tool for some), Qwen chat-
 Observations:
 - Tool *choice* and JSON shape are fine at 0.6B. What fails is argument *content*: the 0.6B model wrote broken Python (a `for` clause stuck on a function def), guessed SQL table and column names (`sales_table`, `order_date`), and once routed an arithmetic question to `search`. The 1.5B model wrote correct code and SQL but still guessed the schema, and once answered in prose instead of calling a tool.
 - Consequence for design: inject the real DB schema and doc file list into the prompt, make the verifier catch SQL errors / Python exceptions and feed them back (Reflexion-style retry), and measure how much the verifier+retry loop recovers. That is exactly the result worth reporting.
-- Bigger models (Qwen3-1.7B 4.1 GB, Qwen3-4B-Instruct-2507 8 GB, SmolLM3-3B 6 GB) exceed the 3 GB download budget in bf16. Quantised GGUF would fit but needs `llama-cpp-python`, which means compiling on Windows. Not worth the risk. Qwen3-1.7B-FP8 (2.65 GB) needs FP8 kernels that are not CPU-friendly (not tested).
+- Bigger models (Qwen3-1.7B 4.1 GB, Qwen3-4B-Instruct-2507 8 GB, SmolLM3-3B 6 GB) are too large to download comfortably in bf16. Quantised GGUF would fit but needs `llama-cpp-python`, which means compiling on Windows. Not worth the risk. Qwen3-1.7B-FP8 (2.65 GB) needs FP8 kernels that are not CPU-friendly (not tested).
 - Third-party leaderboards (reported, unverified): Qwen3 0.6B and 1.7B rank low on BFCL multi-turn, with a capability threshold between 1.7B and 4B for reliable multi-step ReAct (https://d-central.tech/local-llm-agent-capability/, https://benchmarklist.com/benchmarks/bfcl/). Matches my probe: single call fine, multi-step fragile. Re-check the official board (https://gorilla.cs.berkeley.edu/leaderboard.html) before quoting any number. I will quote only my own measurements.
-- I deleted the Qwen2.5-1.5B download after probing to stay inside the budget. Qwen3-0.6B stays cached (shared HF cache).
+- I deleted the Qwen2.5-1.5B download after probing to save disk. Qwen3-0.6B stays cached.
 
-Chosen: Qwen3-0.6B as the default real model; Qwen2.5-0.5B-Instruct (already cached) as an alternative; scripted model for deterministic tests; OpenAI/Anthropic adapters against stubs.
+Chosen: Qwen3-0.6B as the default real model; Qwen2.5-0.5B-Instruct (small) as an alternative; scripted model for deterministic tests; OpenAI/Anthropic adapters against stubs.
 
 ## 4. Sandboxing Python code
 
 Sources agree (https://www.morphllm.com/python-sandbox and others, practitioner blogs, not authoritative): language-level sandboxes (RestrictedPython, stripped `__builtins__`, import filters) get bypassed via introspection; real isolation is at the OS or VM boundary; timeouts plus memory caps alone are denial-of-service protection, not a security boundary.
 
-Platform reality for this build (Windows 11 dev, Linux for CI):
+Platform reality (Windows 11 dev, Linux for CI):
 - Windows has no seccomp or rlimit. Job Objects (via `ctypes`, `JOB_OBJECT_LIMIT_PROCESS_MEMORY`, `ACTIVE_PROCESS_LIMIT`, `KILL_ON_JOB_CLOSE`) give memory caps, a child-process cap and reliable kill of the tree. They do not restrict filesystem or network access. Restricted tokens / AppContainer could, but are heavy to do correctly from Python.
 - Linux: `resource.setrlimit` (`RLIMIT_AS`, `RLIMIT_CPU`, `RLIMIT_NPROC`, `RLIMIT_FSIZE`) in `preexec_fn`. Network denial would need namespaces/seccomp (not attempted).
 
@@ -65,7 +65,7 @@ Decision: one JSONL line per span *event* (start and end as separate lines, so t
 
 ## 6. Retrieval for the search tool
 
-Own BM25 (Okapi, k1=1.5, b=0.75, ~40 lines, no dependency) over paragraph-level chunks, optionally fused with `all-MiniLM-L6-v2` embeddings (already cached, Apache-2.0) via reciprocal rank fusion. Offline either way. A small hand-labelled query set measures recall@3 for BM25 vs hybrid so the choice is evidence-based.
+Own BM25 (Okapi, k1=1.5, b=0.75, ~40 lines, no dependency) over paragraph-level chunks, optionally fused with `all-MiniLM-L6-v2` embeddings (small, Apache-2.0) via reciprocal rank fusion. Offline either way. A small hand-labelled query set measures recall@3 for BM25 vs hybrid so the choice is evidence-based.
 
 ## 7. Data and licences
 
@@ -80,3 +80,4 @@ Own BM25 (Okapi, k1=1.5, b=0.75, ~40 lines, no dependency) over paragraph-level 
 ## 8. Prior art worth naming in the README
 
 LangGraph plan-and-execute tutorial, ReWOO and Reflexion reference code, OpenAI Agents SDK tracing (trace/span model), Langfuse/Phoenix (OTel-based trace UIs). AgentFlow is a small, inspectable, offline-first version of the loop with the verifier made explicit, not a framework.
+

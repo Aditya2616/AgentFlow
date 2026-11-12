@@ -1,4 +1,4 @@
-# AgentFlow: spec
+﻿# AgentFlow: spec
 
 Repo `AgentFlow`, package `agentflow`, local port 8102. MIT, copyright Aditya Jain.
 
@@ -61,7 +61,7 @@ Budgets: `max_steps` 8, `max_attempts` 2 per step, `max_replans` 2, wall-clock l
 
 ```
 AgentFlow/
-  pyproject.toml  requirements.txt  .env.example  LICENSE  README.md  RESEARCH.md  SPEC.md
+  pyproject.toml  requirements.txt  .env.example  LICENSE  README.md  (docs/notes/ holds these notes)
   src/agentflow/
     cli.py  config.py
     graph.py  state.py  planner.py  verifier.py  expectations.py
@@ -119,21 +119,21 @@ Fast/offline (CI): expectations and verifier verdict matrix; planner JSON parse/
 - Static `docs/` demo replays real recordings via a plain static server; desktop 1440x900 and phone 390x844 screenshots reviewed, zero console errors, no horizontal scroll.
 - Eval numbers in README come from `agentflow eval` runs committed under `evals/results/`.
 - README states plainly: which paths ran for real (local model, tools, SSE), which are stub-tested (OpenAI/Anthropic), sandbox limits, small-model limits.
-- No AI-assistance mentions anywhere; commits as Aditya2616; clean `git status`; no weights committed.
+- Clean `git status`; no weights committed.
 
 ## 13. Risks
 
-1. 0.6B planner may produce poor multi-step plans (measured: argument content is weak). Mitigation: schema-in-prompt, default `expect` per tool, repair/fallback, verifier-driven retry; report honest success rates. If too low, offer Qwen2.5-1.5B-Instruct as optional (3.1 GB, over budget, user-initiated download).
+1. 0.6B planner may produce poor multi-step plans (measured: argument content is weak). Mitigation: schema-in-prompt, default `expect` per tool, repair/fallback, verifier-driven retry; report honest success rates. If too low, try Qwen2.5-1.5B-Instruct as an optional extra (3.1 GB download).
 2. CPU latency: ~9 tok/s means a 4-step run takes roughly 30-90 s. Keep prompts short, cache KV prefix for tool catalogue if cheap, stream status events during LLM calls so the UI is never idle.
 3. Sandbox on Windows is not a security boundary (no network/filesystem denial). Documented, red-team tested, gated by AST allow-list.
 4. OTel GenAI conventions are unstable; aligned names pinned and labelled.
 5. LangGraph 1.x API drift: pin `langgraph>=1.1,<2`.
 
-## 14. Decisions needed from the manager
+## 14. Decisions
 
-1. Default local model: Qwen3-0.6B (1.5 GB, measured) acceptable, or allow one 3 GB-class download (Qwen2.5-1.5B) for a better "real" demo?
-2. OK to skip `langchain-openai` / `langchain-anthropic` and write httpx adapters (fewer deps, stub-testable)?
-3. OK that the Windows sandbox is explicitly documented as best-effort (CI on Linux adds rlimits)?
+1. Default local model: Qwen3-0.6B (1.5 GB, measured). Qwen2.5-1.5B-Instruct is an optional extra run, only if memory allows.
+2. No `langchain-openai` / `langchain-anthropic`; httpx adapters instead (fewer dependencies, testable against stubs).
+3. The Windows sandbox is documented as best-effort, not a security boundary (CI on Linux adds rlimits).
 
 ## 15. Changes made during the build
 
@@ -144,3 +144,5 @@ Fast/offline (CI): expectations and verifier verdict matrix; planner JSON parse/
 * Transient tool failures are retried with the same arguments and no extra model call.
 * The trace is streamed by a tracer sink (file plus listeners), not by LangGraph's `get_stream_writer`.
 * Hosted adapters call the HTTP APIs with `httpx` and are LangChain `BaseChatModel`s; they are tested only against `httpx.MockTransport`.
+
+

@@ -251,7 +251,9 @@ async function boot() {
   const sel = $("#rec-select");
   recordings.forEach((r) => { const o = document.createElement("option"); o.textContent = r.title; sel.appendChild(o); });
 
+  const staticSite = !!document.querySelector('meta[name="agentflow-static"]');  // set by scripts/build_docs.py
   try {
+    if (staticSite) throw new Error("static demo, no backend");
     const h = await fetch("/health", { cache: "no-store" });
     backend = h.ok && (await h.json()).status === "ok";
     if (backend) {

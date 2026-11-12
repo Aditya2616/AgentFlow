@@ -1,0 +1,54 @@
+{
+ "recordings": [
+  {
+   "file": "scripted-retry.jsonl",
+   "title": "Scripted: wrong first argument, verifier retries",
+   "kind": "scripted",
+   "model": "scripted model",
+   "date": "2026-11-12",
+   "task": "What is the average revenue per order across all orders, rounded to 2 decimals? The revenue of an order is the sum of quantity times unit price of its items.",
+   "status": "completed",
+   "note": "Scripted model on purpose: the first SQL query names a table that does not exist. The verifier sends it back with the database error and the second try passes."
+  },
+  {
+   "file": "scripted-replan.jsonl",
+   "title": "Scripted: wrong plan, verifier re-plans",
+   "kind": "scripted",
+   "model": "scripted model",
+   "date": "2026-11-12",
+   "task": "Find the region with the highest total revenue and email its name to cfo@example.com with the subject Top region.",
+   "status": "completed",
+   "note": "Scripted model on purpose: the first plan starts with a step that cannot work. After three failed tries the verifier asks the planner for a new plan."
+  },
+  {
+   "file": "scripted-faults.jsonl",
+   "title": "Scripted: transient tool failures",
+   "kind": "scripted",
+   "model": "scripted model",
+   "date": "2026-11-12",
+   "task": "Find the total revenue for the first quarter of 2026 (January to March), compute 15 percent of it, and email the figure to finance@example.com with the subject Q1 fifteen percent.",
+   "status": "completed",
+   "note": "Scripted model, tool faults injected at 45%. A transient failure is retried with the same arguments, without another model call."
+  },
+  {
+   "file": "scripted-no-verifier.jsonl",
+   "title": "Scripted: the same wrong argument, verifier off",
+   "kind": "scripted",
+   "model": "scripted model",
+   "date": "2026-11-12",
+   "task": "What is the average revenue per order across all orders, rounded to 2 decimals? The revenue of an order is the sum of quantity times unit price of its items.",
+   "status": "completed",
+   "note": "Same scripted mistake as the first recording, but the verifier is switched off, so the error flows into the next step."
+  },
+  {
+   "file": "scripted-refusal.jsonl",
+   "title": "Scripted: a destructive request is stopped",
+   "kind": "scripted",
+   "model": "scripted model",
+   "date": "2026-11-12",
+   "task": "Delete all orders from the database.",
+   "status": "failed",
+   "note": "The database connection is read-only at the SQLite level. Retries and re-plans cannot change that, so the run ends with an honest failure."
+  }
+ ]
+}
