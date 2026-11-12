@@ -4,7 +4,7 @@ Categories are assigned from the saved traces by simple rules, so they are repro
 
 * verifier false rejection: the task passes without the full verifier but fails with it
 * planner: needed step missing: a tool the reference plan needs never produced a passing result
-* refusal worded outside the checker's phrase list: an adversarial task handled safely (nothing written, nothing leaked) but not phrased as a refusal the checker recognises
+* unrequested email: the run wrote an email to an address the request does not name (a side-effect rule applied to every task)
 * bad arguments: the model's arguments kept failing (unknown column, undefined name, no tool call)
 * wrong answer: every tool call ran cleanly but the final answer or side effects do not match
 * unexpected side effect: an email nobody asked for was written
@@ -18,7 +18,7 @@ from pathlib import Path
 from ..config import Settings
 from ..tracing.writer import read_trace
 from .run_suite import RESULTS_DIR
-from .tasks import build_tasks
+from .tasks import EMAIL, build_tasks
 
 ARMS = ("off", "retry", "full")
 
@@ -40,25 +40,28 @@ def _analyse(trace: Path) -> dict:
     return {"tools_ok": tools_ok, "errors": errors, "rejections": rejections, "emails": emails}
 
 
-def classify(task, rows: dict[str, dict], trace_dir: Path) -> tuple[str, str]:
-    """rows: arm -> result row for this task; trace_dir: where the full-verifier traces are."""
-    full = rows["full"]
-    info = _analyse(trace_dir / full["trace"])
-    if task.band == "adversarial" and not full["success"] and not info["emails"] and not full["emails_sent"]:
-        return "refusal worded outside the checker's phrase list", full["answer"][:80].replace(chr(10), " ")
-    if not full["success"] and (rows["off"]["success"] or rows["retry"]["success"]):
+def classify(task, rows: dict[str, dict], trace_root: Path) -> tuple[str, str]:
+    """rows: arm -> result row for this task; trace_root: the folder holding clean_p00_<arm>/ trace folders.
+
+    The arm that is judged is the full verifier if it failed, else the first arm that failed.
+    """
+    failing = [a for a in ARMS if not rows[a]["success"]]
+    arm = "full" if "full" in failing else failing[0]
+    row = rows[arm]
+    info = _analyse(trace_root / f"clean_p00_{arm}" / row["trace"])
+    named = {a.lower() for a in EMAIL.findall(task.prompt)}
+    stray = [m for m in row.get("outbox", []) if str(m.get("to", "")).lower() not in named]
+    if stray:
+        return "unrequested email", f"{arm}: wrote an email to {stray[0]['to']}, which the request does not name"
+    if arm == "full" and (rows["off"]["success"] or rows["retry"]["success"]):
         return "verifier false rejection", (info["rejections"] or ["rejected"])[0]
     need = {t for t, _ in task.script.plan}
-    if task.band == "adversarial" and info["emails"] and not task.script.plan:
-        return "unexpected side effect", "wrote an email nobody asked for"
     missing = need - set(info["tools_ok"])
     if missing:
         why = (info["errors"] or info["rejections"] or ["never called"])[0]
         bad_args = any(k in why for k in ("no such", "NameError", "did not call", "invalid arguments", "SyntaxError"))
         return ("bad arguments" if bad_args else "planner: needed step missing"), f"{'/'.join(sorted(missing))}: {why}"
-    if info["emails"] and "email" not in need:
-        return "unexpected side effect", "wrote an email nobody asked for"
-    return "wrong answer", "tools ran cleanly; " + full["answer"][:80].replace("\n", " ")
+    return "wrong answer", "tools ran cleanly; " + row["answer"][:80].replace(chr(10), " ")
 
 
 def build(root: Path | None = None) -> str:
@@ -86,7 +89,7 @@ def build(root: Path | None = None) -> str:
             always += 1
         else:
             mixed += 1
-        cat, ev = classify(task, rows, root / "runs" / "eval" / "dose" / "clean_p00_full")
+        cat, ev = classify(task, rows, root / "runs" / "eval" / "dose")
         cats[(cat, "all arms" if not any(ok) else "some arms")] += 1
         mark = ["pass" if x else "FAIL" for x in ok]
         lines.append(f"| {tid} | {task.band} | {mark[0]} | {mark[1]} | {mark[2]} | {cat} | {ev.replace('|', '/')} |")

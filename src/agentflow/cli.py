@@ -120,6 +120,14 @@ def cmd_ablate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rescore(args: argparse.Namespace) -> int:
+    from .evals.rescore import rescore_all
+
+    for name, (before, after) in rescore_all().items():
+        print(f"{name}: {before} -> {after}")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     from .evals.report import write_report
 
@@ -194,6 +202,8 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--cache", default=None)
     d.set_defaults(fn=cmd_ablate)
 
+    sub.add_parser("rescore", help="re-score stored results with the current checkers (offline)").set_defaults(
+        fn=cmd_rescore)
     sub.add_parser("eval-report", help="write evals/results/SUMMARY.md").set_defaults(fn=cmd_report)
     t = sub.add_parser("replay", help="print a recorded trace")
     t.add_argument("trace")

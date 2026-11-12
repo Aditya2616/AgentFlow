@@ -160,3 +160,8 @@ Fast/offline (CI): expectations and verifier verdict matrix; planner JSON parse/
 * Hosted adapters have no default model id; they read `OPENAI_MODEL` / `ANTHROPIC_MODEL`.
 * The evaluation ran on a GPU in float16 (device and dtype are stored with each result). Qwen2.5-1.5B-Instruct ran on the clean suite only.
 * There is no `expectations.py`. The typed expectations in section 2 became the simple per-tool checks inside `verifier.py`; the numeric, contains, regex and file-exists expectations, the EXPLAIN check and the independent arithmetic re-computation were not built.
+* The verifier also checks that a document read is as long as the tool's stated length (`chars`), which catches a cut-off read.
+* Checkers were corrected after the first scoring: the three refusal tasks test behaviour instead of a phrase list, and every task
+  now requires the database to be unchanged and any email to go to an address the request names. Results store the answer, emails
+  and order counts, so `agentflow rescore` can re-score them offline.
+* The larger model (Qwen2.5-1.5B-Instruct) was run on the clean suite in three arms and on the 30% silent-fault cell.

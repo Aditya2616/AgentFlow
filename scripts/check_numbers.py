@@ -3,11 +3,12 @@
     python scripts/check_numbers.py --write   # regenerate the derived files and the README results block
     python scripts/check_numbers.py --check   # fail if any of them is out of sync (a fast test runs this)
 
-Inputs: evals/results/dose/*.json, the top-level evals/results/*.json, evals/retrieval.json, the code.
+Inputs: evals/results/dose/*.json, evals/results/larger/dose/*.json, the top-level evals/results/*.json,
+evals/first_scoring.json, evals/retrieval.json, and the code.
 Derived and checked:
   * evals/results/DOSE.md, SUMMARY.md           (tables and paired tests)
   * web/results.json and docs/results.json      (what the UI's Results view reads)
-  * docs/assets/dose.svg                        (the README chart)
+  * docs/assets/dose.svg                        (the README chart, drawn from the same cells)
   * README.md between the RESULTS markers       (tables plus the prose numbers, from scripts/readme_results.md)
   * README.md facts outside the markers         (counts and settings, checked against the code)
   * internal arithmetic of the result files     (counts, totals, intervals)
@@ -30,12 +31,14 @@ from agentflow.config import AgentConfig  # noqa: E402
 from agentflow.evals import breakdown, dose_report, report  # noqa: E402
 from agentflow.evals.dose_report import ARM_LABEL, ARMS, KIND_LABEL, KINDS, summarise  # noqa: E402
 from agentflow.evals.stats import mcnemar_exact, wilson  # noqa: E402
-from agentflow.evals.tasks import build_tasks  # noqa: E402
+from agentflow.evals.tasks import EMAIL, build_tasks  # noqa: E402
 
 RES = ROOT / "evals" / "results"
 DOSE = RES / "dose"
+BIG = RES / "larger" / "dose"
 README = ROOT / "README.md"
 START, END = "<!-- RESULTS:START -->", "<!-- RESULTS:END -->"
+RATES = (0.0, 0.15, 0.3, 0.5)
 
 
 def _tasks():
@@ -48,6 +51,10 @@ def pc(k: int, n: int) -> str:
     return f"{round(100 * k / n)}%"
 
 
+def pts(k: int, n: int) -> int:
+    return round(100 * k / n)
+
+
 def load(name: str) -> dict:
     return json.loads((RES / f"{name}.json").read_text(encoding="utf-8"))
 
@@ -56,61 +63,100 @@ def cell(cells, kind, rate, arm):
     return dose_report._cell_for(cells, kind, rate, arm)
 
 
-def pair_p(cells, kind, rate, a, b) -> float:
+def kn(c) -> tuple[int, int]:
+    return sum(r["success"] for r in c["rows"]), len(c["rows"])
+
+
+def p_of(cells, kind, rate, a, b) -> float:
     _, oa, ob, _ = dose_report.paired(cell(cells, kind, rate, a), cell(cells, kind, rate, b))
     return mcnemar_exact(oa, ob)
 
 
 def fmt_p(p: float) -> str:
-    return f"{p:.2f}" if p >= 0.1 else f"{p:.4f}".rstrip("0") if p >= 0.0001 else "< 0.0001"
+    """The p-value with its operator: '= 0.12' or '< 0.0001'."""
+    if p >= 0.1:
+        return f"= {p:.2f}"
+    return f"= {p:.4f}".rstrip("0") if p >= 0.0001 else "< 0.0001"
+
+
+def first_scoring() -> dict[str, dict[tuple[str, int], int]]:
+    raw = json.loads((ROOT / "evals" / "first_scoring.json").read_text(encoding="utf-8"))
+    return {k: {(t, s): ok for t, s, ok in rows} for k, rows in raw.items()}
 
 
 # ----------------------------------------------------------------------------- facts used in prose
-def facts(cells) -> dict[str, str]:
+def facts(cells, big) -> dict[str, str]:
     f: dict[str, str] = {}
+    tasks = {t.id: t for t in _tasks()}
     clean = {a: cell(cells, "transient", 0.0, a) for a in ARMS}
     f["n_tasks"] = str(len(clean["full"]["rows"]))
-    for a in ARMS:
-        k = sum(r["success"] for r in clean[a]["rows"])
-        f[f"clean_{a}_k"] = str(k)
-        f[f"clean_{a}_pct"] = pc(k, len(clean[a]["rows"]))
+    f["n_tasks_less_three"] = str(len(clean["full"]["rows"]) - 3)
     by = {a: {r["task_id"]: r["success"] for r in clean[a]["rows"]} for a in ARMS}
+    for a in ARMS:
+        k, n = kn(clean[a])
+        f[f"clean_{a}_k"], f[f"clean_{a}_pct"] = str(k), pc(k, n)
     f["fail_all"] = str(sum(not any(by[a][t] for a in ARMS) for t in by["full"]))
+    f["only_full_ids"] = ", ".join(t for t in by["full"] if by["full"][t] and not by["off"][t] and not by["retry"][t])
+    f["only_full_n"] = str(len(f["only_full_ids"].split(", "))) if f["only_full_ids"] else "0"
+    f["p_clean_full_retry"] = fmt_p(p_of(cells, "transient", 0.0, "full", "retry"))
     for kind in KINDS:
-        for rate in (0.15, 0.3, 0.5):
+        for rate in RATES:
             r = f"{int(rate * 100)}"
+            sums = {a: summarise(cell(cells, kind, rate, a)) for a in ARMS}
             for a in ARMS:
-                s = summarise(cell(cells, kind, rate, a))
-                f[f"{kind}_{r}_{a}"] = pc(s["k"], s["n"])
-                f[f"{kind}_{r}_{a}_calls"] = f"{s['model_calls']:.1f}"
-            f[f"{kind}_{r}_p_full_retry"] = fmt_p(pair_p(cells, kind, rate, "full", "retry"))
-            f[f"{kind}_{r}_p_retry_off"] = fmt_p(pair_p(cells, kind, rate, "retry", "off"))
-    f["silent_gap_30"] = str(round(100 * summarise(cell(cells, "silent", 0.3, "full"))["rate"]) -
-                              round(100 * summarise(cell(cells, "silent", 0.3, "retry"))["rate"]))
-    f["silent_gap_50"] = str(round(100 * summarise(cell(cells, "silent", 0.5, "full"))["rate"]) -
-                              round(100 * summarise(cell(cells, "silent", 0.5, "retry"))["rate"]))
+                f[f"{kind}_{r}_{a}"] = pc(sums[a]["k"], sums[a]["n"])
+                f[f"{kind}_{r}_{a}_calls"] = f"{sums[a]['model_calls']:.1f}"
+            f[f"{kind}_{r}_gap"] = str(pts(sums["full"]["k"], sums["full"]["n"]) - pts(sums["retry"]["k"], sums["retry"]["n"]))
+            f[f"{kind}_{r}_retry_gain"] = str(pts(sums["retry"]["k"], sums["retry"]["n"]) - pts(sums["off"]["k"], sums["off"]["n"]))
+            if rate:
+                f[f"{kind}_{r}_p_full_retry"] = fmt_p(p_of(cells, kind, rate, "full", "retry"))
+                f[f"{kind}_{r}_p_retry_off"] = fmt_p(p_of(cells, kind, rate, "retry", "off"))
+        for a in ARMS:
+            c0, c5 = summarise(cell(cells, kind, 0.0, a)), summarise(cell(cells, kind, 0.5, a))
+            f[f"{kind}_drop_{a}"] = str(pts(c0["k"], c0["n"]) - pts(c5["k"], c5["n"]))
     f["seeds"] = str(len(cell(cells, "transient", 0.3, "full")["rows"]) // len(clean["full"]["rows"]))
     f["runs_per_cell"] = str(len(cell(cells, "transient", 0.3, "full")["rows"]))
     # failure breakdown (from FAILURES.md, which is generated from the traces)
     text = (RES / "FAILURES.md").read_text(encoding="utf-8")
-    cat = {m.group(1): int(m.group(2)) for m in re.finditer(r"^\| ([a-z][^|]+?) \| (\d+) \| \d+ \|$", text, re.M)}
-    f["cat_planner"] = str(cat.get("planner: needed step missing", 0))
-    f["cat_args"] = str(cat.get("bad arguments", 0))
+    cat = {m.group(1): (int(m.group(2)), int(m.group(3))) for m in
+           re.finditer(r"^\| ([a-z][^|]+?) \| (\d+) \| (\d+) \|$", text, re.M)}
+    f["cat_planner"] = str(cat.get("planner: needed step missing", (0, 0))[0])
+    f["cat_args"] = str(cat.get("bad arguments", (0, 0))[0])
     # send guard
-    ng, g = load("qwen3-0.6b_clean_noguard_full"), cell(cells, "transient", 0.0, "full")
-    tasks = {t.id: t for t in _tasks()}
+    ng, g = load("qwen3-0.6b_clean_noguard_full"), clean["full"]
     f["mail_noguard"] = str(sum(r["emails_sent"] for r in ng["rows"]))
     f["mail_guard"] = str(sum(r["emails_sent"] for r in g["rows"]))
-    unasked = [r["task_id"] for r in ng["rows"] if r["emails_sent"] and "@" not in tasks[r["task_id"]].prompt]
-    f["mail_unasked_n"] = str(len(unasked))
-    f["mail_unasked_ids"] = ", ".join(unasked)
-    f["mail_guard_unasked"] = str(sum(1 for r in g["rows"] if r["emails_sent"] and "@" not in tasks[r["task_id"]].prompt))
+    stray_ng = [r for r in ng["rows"] if any(m["to"].lower() not in {a.lower() for a in EMAIL.findall(tasks[r["task_id"]].prompt)}
+                                             for m in r["outbox"])]
+    stray_g = [r for r in g["rows"] if any(m["to"].lower() not in {a.lower() for a in EMAIL.findall(tasks[r["task_id"]].prompt)}
+                                           for m in r["outbox"])]
+    f["stray_noguard_n"], f["stray_noguard_ids"] = str(len(stray_ng)), ", ".join(r["task_id"] for r in stray_ng)
+    f["stray_guard_n"] = str(len(stray_g))
     f["guard_k"], f["noguard_k"] = str(g["successes"]), str(ng["successes"])
     f["n_addr_tasks"] = str(sum("@" in t.prompt for t in tasks.values()))
+    # first scoring versus the corrected checkers
+    old = first_scoring()
+    changed = []
+    for a in ARMS:
+        was = old[f"dose/clean_p00_{a}"]
+        for r in clean[a]["rows"]:
+            before = was[(r["task_id"], r["seed"])]
+            if bool(before) != bool(r["success"]):
+                changed.append(f"{r['task_id']} {'fail' if before and not r['success'] else 'pass'} in the {ARM_LABEL[a]} arm")
+    f["chg_clean_tasks"] = "; ".join(changed) if changed else "none"
+    for a in ARMS:
+        was = sum(old[f"dose/clean_p00_{a}"].values())
+        f[f"chg_clean_{a}"] = f"{was} to {clean[a]['successes']}"
     # larger model
-    big_off, big_on = load("qwen2.5-1.5b_clean_noverify"), load("qwen2.5-1.5b_clean_verify")
-    f["big_off_k"], f["big_on_k"] = str(big_off["successes"]), str(big_on["successes"])
-    f["big_seconds"] = str(round(sum(r["seconds"] for r in big_on["rows"]) / len(big_on["rows"])))
+    bigclean = {a: load(f"qwen2.5-1.5b_clean_{a}") for a in ARMS}
+    for a in ARMS:
+        f[f"big_clean_{a}_k"] = str(bigclean[a]["successes"])
+        s = summarise(cell(big, "silent", 0.3, a))
+        f[f"big_silent_{a}"] = pc(s["k"], s["n"])
+        f[f"big_silent_{a}_calls"] = f"{s['model_calls']:.1f}"
+    f["big_silent_p_full_retry"] = fmt_p(p_of(big, "silent", 0.3, "full", "retry"))
+    f["big_silent_n"] = str(len(cell(big, "silent", 0.3, "full")["rows"]))
+    f["big_device"], f["big_dtype"] = bigclean["full"]["device"], bigclean["full"]["dtype"]
     cfg = AgentConfig()
     f["max_attempts"], f["max_replans"] = str(cfg.max_attempts), str(cfg.max_replans)
     f["device"], f["dtype"] = clean["full"]["device"], clean["full"]["dtype"]
@@ -143,20 +189,53 @@ def clean_table() -> str:
 
 
 def extra_table(cells) -> str:
-    full = cell(cells, "transient", 0.0, "full")
-    rows = [("Qwen3-0.6B, full verifier, send guard on", full), ("Qwen3-0.6B, full verifier, send guard off", load("qwen3-0.6b_clean_noguard_full")),
-            ("Qwen2.5-1.5B-Instruct, no verifier", load("qwen2.5-1.5b_clean_noverify")),
-            ("Qwen2.5-1.5B-Instruct, full verifier (run before the send guard existed)", load("qwen2.5-1.5b_clean_verify"))]
-    body = "\n".join(f"| {label} | {r['successes']}/{r['n']} | {sum(x['emails_sent'] for x in r['rows']) if 'emails_sent' in r['rows'][0] else 'not recorded'} | {r['device']}, {r['dtype']} |"
-                     for label, r in rows)
-    return "| configuration (clean run) | passed | emails written | device, dtype |\n|---|---|---|---|\n" + body
+    rows = [("Qwen3-0.6B, full verifier, send guard on", cell(cells, "transient", 0.0, "full")),
+            ("Qwen3-0.6B, full verifier, send guard off", load("qwen3-0.6b_clean_noguard_full"))]
+    body = "\n".join(f"| {label} | {r['successes']}/{r['n']} | {sum(x['emails_sent'] for x in r['rows'])} |" for label, r in rows)
+    return "| clean run | passed | emails written |\n|---|---|---|\n" + body
 
 
-def render_block(cells) -> str:
+def big_table(cells, big) -> str:
+    bigclean = {a: load(f"qwen2.5-1.5b_clean_{a}") for a in ARMS}
+    head = "| model | " + " | ".join(f"clean, {ARM_LABEL[a]}" for a in ARMS) + " | " + " | ".join(
+        f"30% silent, {ARM_LABEL[a]}" for a in ARMS) + " |"
+    sep = "|---|" + "---|" * 6
+
+    def row(label, clean_by, silent_cells):
+        cs = [f"{clean_by[a]['successes']}/{clean_by[a]['n']}" for a in ARMS]
+        ss = []
+        for a in ARMS:
+            s = summarise(cell(silent_cells, "silent", 0.3, a))
+            ss.append(f"{pc(s['k'], s['n'])} ({s['k']}/{s['n']})")
+        return f"| {label} | " + " | ".join(cs + ss) + " |"
+
+    small = {a: cell(cells, "transient", 0.0, a) for a in ARMS}
+    return "\n".join([head, sep, row("Qwen3-0.6B (default)", small, cells),
+                      row("Qwen2.5-1.5B-Instruct", bigclean, big)])
+
+
+def scoring_table(cells) -> str:
+    old = first_scoring()
+    rows = ["| fault rate | kind | " + " | ".join(ARM_LABEL[a] for a in ARMS) + " |", "|---|---|---|---|---|"]
+    for kind in ("clean", *KINDS):
+        for rate in ((0.0,) if kind == "clean" else RATES[1:]):
+            cs = []
+            for a in ARMS:
+                new = cell(cells, "transient" if kind == "clean" else kind, rate, a)
+                k, n = kn(new)
+                key = f"dose/{kind}_p{int(round(rate * 100)):02d}_{a}"
+                was = sum(old[key].values())
+                cs.append(f"{pts(was, n)}% to {pts(k, n)}%")
+            rows.append(f"| {rate:.0%} | {'none' if kind == 'clean' else kind} | " + " | ".join(cs) + " |")
+    return "\n".join(rows)
+
+
+def render_block(cells, big) -> str:
     text = (ROOT / "scripts" / "readme_results.md").read_text(encoding="utf-8")
-    f = facts(cells)
+    f = facts(cells, big)
     text = (text.replace("{{dose}}", dose_tables(cells)).replace("{{clean}}", clean_table())
-            .replace("{{extra}}", extra_table(cells)))
+            .replace("{{extra}}", extra_table(cells)).replace("{{big}}", big_table(cells, big))
+            .replace("{{scoring}}", scoring_table(cells)))
     for key, val in f.items():
         text = text.replace("{{" + key + "}}", val)
     left = re.findall(r"\{\{(\w+)\}\}", text)
@@ -174,7 +253,7 @@ def readme_with(block: str) -> str:
 
 
 # ----------------------------------------------------------------------------- facts outside the block
-def readme_facts(cells) -> list[tuple[str, str, str]]:
+def readme_facts() -> list[tuple[str, str, str]]:
     """(description, regex with one group, expected) checked against README.md text outside the block."""
     cfg = AgentConfig()
     tasks = _tasks()
@@ -198,19 +277,20 @@ def readme_facts(cells) -> list[tuple[str, str, str]]:
     ]
 
 
-def check_arithmetic(cells) -> list[str]:
+def check_arithmetic(cells, big) -> list[str]:
     bad = []
-    for key, c in cells.items():
-        rows, name = c["rows"], "/".join(map(str, key))
-        k = sum(r["success"] for r in rows)
-        if (k, len(rows)) != (c["successes"], c["n"]):
-            bad.append(f"{name}: successes/n do not match the rows")
-        lo, hi = wilson(k, len(rows))
-        if [round(lo, 4), round(hi, 4)] != c["ci95"]:
-            bad.append(f"{name}: stored interval differs from the one recomputed from the counts")
-        seeds = 1 if key[1] == 0 else 5
-        if len(rows) != len({r["task_id"] for r in rows}) * seeds:
-            bad.append(f"{name}: expected tasks x {seeds} seeds rows")
+    for group, seeds_nonzero in ((cells, 5), (big, 5)):
+        for key, c in group.items():
+            rows, name = c["rows"], "/".join(map(str, key))
+            k = sum(r["success"] for r in rows)
+            if (k, len(rows)) != (c["successes"], c["n"]):
+                bad.append(f"{name}: successes/n do not match the rows")
+            lo, hi = wilson(k, len(rows))
+            if [round(lo, 4), round(hi, 4)] != c["ci95"]:
+                bad.append(f"{name}: stored interval differs from the one recomputed from the counts")
+            seeds = 1 if key[1] == 0 else seeds_nonzero
+            if len(rows) != len({r["task_id"] for r in rows}) * seeds:
+                bad.append(f"{name}: expected tasks x {seeds} seeds rows")
     for p in sorted(RES.glob("*.json")):
         r = json.loads(p.read_text(encoding="utf-8"))
         if sum(x["success"] for x in r["rows"]) != r["successes"] or len(r["rows"]) != r["n"]:
@@ -218,25 +298,41 @@ def check_arithmetic(cells) -> list[str]:
     return bad
 
 
+def rescoring_agrees() -> list[str]:
+    """Stored successes must equal what the current checkers give for the stored answers and side effects."""
+    from agentflow.evals.harness import judge
+    from agentflow.evals.tasks import CheckCtx
+
+    tasks = {t.id: t for t in _tasks()}
+    bad = []
+    for p in sorted(RES.rglob("*.json")):
+        for x in json.loads(p.read_text(encoding="utf-8"))["rows"]:
+            ctx = CheckCtx(x["answer"], x["status"], x["outbox"], x["db_rows"][0], x["db_rows"][1], tasks[x["task_id"]].prompt)
+            if judge(tasks[x["task_id"]], x["status"], ctx) != x["success"]:
+                bad.append(f"{p.relative_to(RES)}: {x['task_id']} seed {x['seed']} is scored differently by the current checkers; "
+                           "run agentflow rescore")
+                break
+    return bad
+
+
 def failures_agree(cells) -> list[str]:
     text = (RES / "FAILURES.md").read_text(encoding="utf-8")
     m = re.search(r"Passing: off (\d+)/(\d+), retry only (\d+)/\d+, full (\d+)/\d+\.", text)
-    exp = [str(sum(r["success"] for r in cell(cells, "transient", 0.0, a)["rows"])) for a in ARMS]
+    exp = [str(kn(cell(cells, "transient", 0.0, a))[0]) for a in ARMS]
     got = [m.group(1), m.group(3), m.group(4)] if m else []
     return [] if got == exp else [f"FAILURES.md pass counts {got} differ from the result files {exp}"]
 
 
 # ----------------------------------------------------------------------------- driver
-def derived(cells) -> dict[Path, str]:
-    out = {
+def derived(cells, big) -> dict[Path, str]:
+    return {
         RES / "DOSE.md": dose_report.build_markdown(cells),
         RES / "SUMMARY.md": report.build_report(RES),
         ROOT / "web" / "results.json": json.dumps(dose_report.results_json(cells), indent=1),
         ROOT / "docs" / "results.json": json.dumps(dose_report.results_json(cells), indent=1),
         ROOT / "docs" / "assets" / "dose.svg": dose_report.chart_svg(cells),
-        README: readme_with(render_block(cells)),
+        README: readme_with(render_block(cells, big)),
     }
-    return out
 
 
 def read(p: Path) -> str:
@@ -249,23 +345,23 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--write", action="store_true")
     g.add_argument("--check", action="store_true")
     args = ap.parse_args(argv)
-    cells = dose_report.load_cells(DOSE)
-    problems = check_arithmetic(cells)
+    cells, big = dose_report.load_cells(DOSE), dose_report.load_cells(BIG)
+    problems = check_arithmetic(cells, big)
     if args.write:
         if (ROOT / "runs" / "eval" / "dose" / "clean_p00_full").exists():
             breakdown.write()
-        for path, text in derived(cells).items():
+        for path, text in derived(cells, big).items():
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
         print("derived files and README results written")
-    problems += failures_agree(cells)
+    problems += failures_agree(cells) + rescoring_agrees()
     if args.check:
-        for path, text in derived(cells).items():
+        for path, text in derived(cells, big).items():
             if read(path).rstrip("\n") != text.replace("\r\n", "\n").rstrip("\n"):
                 problems.append(f"{path.relative_to(ROOT)} is out of sync; run scripts/check_numbers.py --write")
     readme = read(README)
     outside = re.sub(re.escape(START) + ".*?" + re.escape(END), "", readme, flags=re.S)
-    for what, rx, expected in readme_facts(cells):
+    for what, rx, expected in readme_facts():
         m = re.search(rx, outside)
         if not m:
             problems.append(f"README: could not find the sentence for '{what}'")

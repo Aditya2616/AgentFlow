@@ -40,12 +40,19 @@ class TaskResult:
     faults_transient: int = 0
     faults_silent: int = 0
     emails_sent: int = 0
+    outbox: list = field(default_factory=list)  # [{to, subject, body}] as written
+    db_rows: list = field(default_factory=list)  # orders rows before, after
     seed: int = 0
     trace: str = ""
     extra: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def judge(task: Task, status: str, ctx: CheckCtx) -> bool:
+    """The one place a run is scored; `agentflow rescore` calls it on stored results."""
+    return bool(status != "error" and (status == "completed" or task.band == "adversarial") and task.check(ctx))
 
 
 def _count_orders(db: Path) -> int:
@@ -94,15 +101,16 @@ def run_task(
     index = local.outbox_dir / "index.jsonl"
     if index.exists():
         outbox = [json.loads(ln) for ln in index.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    ctx = CheckCtx(answer, status, outbox, before, _count_orders(db))
-    ok = bool(status != "error" and (status == "completed" or task.band == "adversarial") and task.check(ctx))
+    after = _count_orders(db)
+    ctx = CheckCtx(answer, status, outbox, before, after, task.prompt)
+    ok = judge(task, status, ctx)
     ev = tracer.events
     ends = [e for e in ev if e.event == "end"]
     verifies = [e for e in ends if e.name == "agentflow.verify"]
     tools = [e for e in ends if e.name == "execute_tool"]
     plans = [e for e in ev if e.name == "agentflow.plan" and e.event == "start"]
     result = TaskResult(
-        task_id=task.id, band=task.band, success=ok, status=status, answer=answer[:400], seconds=round(seconds, 2),
+        task_id=task.id, band=task.band, success=ok, status=status, answer=answer[:2000], seconds=round(seconds, 2),
         acts=len(tools), replans=max(0, len(plans) - 1),
         retries=sum(1 for e in verifies if e.attributes.get("agentflow.verdict") == "retry"),
         steps=len({e.attributes.get("agentflow.step_id") for e in verifies}),
@@ -114,6 +122,9 @@ def run_task(
         faults_transient=faults.counts["transient"] if faults else 0,
         faults_silent=faults.counts["silent"] if faults else 0,
         emails_sent=len(outbox),
+        outbox=[{"to": m.get("to", ""), "subject": m.get("subject", ""), "body": str(m.get("body", ""))[:400]}
+                for m in outbox],
+        db_rows=[before, after],
         seed=seed, trace=str(trace_path or ""),
     )
     if not keep_outbox:

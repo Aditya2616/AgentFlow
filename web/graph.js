@@ -161,8 +161,8 @@ export class Graph {
     const node = el("g", { class: "packet" }, this.gPackets);
     const trail = el("line", { class: "trail", x1: a.x, y1: a.y, x2: a.x, y2: a.y, stroke: color }, node);
     const dot = el("g", {}, node);
-    el("circle", { r: 10, fill: color, opacity: 0.18 }, dot);
-    el("circle", { r: 4, fill: color }, dot);
+    el("circle", { r: 13, fill: color, opacity: 0.22 }, dot);
+    el("circle", { r: 5.5, fill: color }, dot);
     const dist = Math.hypot(b.x - a.x, b.y - a.y);
     const dur = Math.max(260, Math.min(620, 220 + dist * 0.9)) / this.speed;
     this.flying.push({ a, b, node, trail, dot, t0: now, dur });

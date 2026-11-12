@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from .config import AgentConfig
 from .prompts import compact
+from .tools.docs import MAX_CHARS as MAX_DOC_CHARS
 
 Outcome = Literal["pass", "retry", "replan", "fail"]
 NUM = re.compile(r"-?\d[\d,]*\.?\d*")
@@ -114,6 +115,10 @@ def run_checks(step: dict, obs: dict, prev: dict[str, dict]) -> list[Check]:
         add("has_output", bool(v["stdout"].strip()), "the code printed nothing; print the final result")
     elif tool == "docs":
         add("has_text", bool((v.get("text") or v.get("summary") or "").strip()), "the document is empty")
+        if isinstance(v.get("text"), str) and "chars" in v:
+            want = min(int(v["chars"]), MAX_DOC_CHARS)  # the tool's contract: a read returns the whole file up to the cap
+            add("complete", len(v["text"]) >= want,
+                f"the document text is cut short ({len(v['text'])} of {want} characters); read it again")
     return checks
 
 

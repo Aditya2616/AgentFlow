@@ -68,9 +68,9 @@ class FaultInjector:
 
     transient: the tool call raises a timeout (a plain retry fixes it).
     silent: the tool succeeds but returns a well-formed, wrong result: no search hits, a SQL result
-        with zero rows, empty Python output, or a document cut to its first 40 characters.
-        Email is never perturbed. Only checking the result can notice a silent fault, and the
-        verifier has no check for the truncated document, which is reported as a limitation.
+        with zero rows, empty Python output, or a document read cut to its first 40 characters.
+        Email is never perturbed. Only checking the result can notice a silent fault. The docs tool states the
+        document's length (`chars`), so the verifier can see that a read was cut short.
     """
 
     def __init__(self, probability: float = 0.0, seed: int = 0, silent: float = 0.0) -> None:
@@ -94,10 +94,8 @@ class FaultInjector:
             v["rows"] = []
         elif name == "python":
             v["stdout"] = ""
-        elif name == "docs":
-            for key in ("text", "summary"):
-                if isinstance(v.get(key), str):
-                    v[key] = v[key][:40]
+        elif name == "docs" and isinstance(v.get("text"), str):
+            v["text"] = v["text"][:40]  # "chars" still states the real length, as the tool's contract says
         else:
             return value, None
         self.counts["silent"] += 1

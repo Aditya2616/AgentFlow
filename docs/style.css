@@ -102,7 +102,7 @@ textarea { resize: vertical; min-height: 64px; }
 .graph-svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .edge { fill: none; stroke: var(--line-2); stroke-width: 1; }
 .edge.back { stroke-dasharray: 3 5; }
-.trail { stroke-width: 1.5; stroke-linecap: round; }
+.trail { stroke-width: 2.5; stroke-linecap: round; }
 .node .body { fill: #0d0e13; stroke: var(--line-2); stroke-width: 1; transition: fill .35s, stroke .35s; }
 .node .ring { fill: none; stroke: transparent; stroke-width: 1; transform-box: fill-box; transform-origin: center; opacity: 0; }
 .node .lbl { font: 500 12px var(--mono); fill: var(--bone); letter-spacing: .02em; }
@@ -190,12 +190,13 @@ input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-radius
   .handle { cursor: pointer; min-height: 56px; padding: 10px 14px 6px; flex-wrap: wrap; position: relative; }
   .handle .grip { display: block; position: absolute; top: 7px; left: 50%; width: 38px; height: 4px; border-radius: 2px; background: var(--line-2); transform: translateX(-50%); }
   .handle .h-title, .handle .h-sum { margin-top: 10px; }
-  .layout { padding-bottom: 76px; }
+  .layout { padding-bottom: calc(56px + 28px + env(safe-area-inset-bottom)); }  /* the collapsed trace sheet is 56px tall */
+  .stage > .controls { order: 0; }
   .stage > .plan { order: 1; }
   .stage > .graph-panel { order: 2; }
   .stage > .transport { order: 3; }
-  .stage > .controls { order: 4; }
   .stage > .answer { order: 5; }
+  #rec-note { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .chips button { min-height: 44px; padding: 0 14px; }
   .seg.small button { min-height: 44px; }
   .foot { padding-bottom: 80px; }

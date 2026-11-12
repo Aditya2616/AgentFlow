@@ -174,3 +174,19 @@ def test_toolbox_fault_injection_is_deterministic(settings):
     ra = [a.execute("sql", {"query": "SELECT 1"}).error_kind for _ in range(12)]
     rb = [b.execute("sql", {"query": "SELECT 1"}).error_kind for _ in range(12)]
     assert ra == rb and "transient" in ra and None in ra
+
+
+def test_cut_off_document_read_is_caught_by_the_completeness_check(settings):
+    from agentflow.tools.registry import FaultInjector, ToolBox
+    from agentflow.verifier import run_checks
+
+    step = {"id": "s1", "tool": "docs", "goal": "read"}
+    clean = ToolBox(settings).execute("docs", {"filename": "onboarding.md", "action": "read"})
+    assert all(c.ok for c in run_checks(step, {"ok": True, "value": clean.value}, {}))
+    cut = ToolBox(settings, FaultInjector(0.0, 0, silent=1.0)).execute("docs", {"filename": "onboarding.md", "action": "read"})
+    assert cut.fault == "silent:docs" and len(cut.value["text"]) == 40 and cut.value["chars"] == clean.value["chars"]
+    bad = [c for c in run_checks(step, {"ok": True, "value": cut.value}, {}) if not c.ok]
+    assert [c.name for c in bad] == ["complete"] and "cut short" in bad[0].detail
+    # a summary has no length contract and is left alone
+    s = ToolBox(settings, FaultInjector(0.0, 0, silent=1.0)).execute("docs", {"filename": "onboarding.md", "action": "summarise"})
+    assert s.fault is None
