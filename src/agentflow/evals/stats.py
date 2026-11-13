@@ -24,3 +24,13 @@ def mcnemar_exact(only_a: int, only_b: int) -> float:
     k = min(only_a, only_b)
     tail = sum(math.comb(n, i) for i in range(0, k + 1)) / 2**n
     return min(1.0, 2 * tail)
+
+
+def pct_int(k: int, n: int) -> int:
+    """k/n as a whole percentage, halves rounded up (62.5 -> 63), exactly, as the UI's Math.round does."""
+    return (200 * k + n) // (2 * n) if n else 0
+
+
+def round_half_up(x: float) -> int:
+    """Round to the nearest integer with halves going up, like JavaScript's Math.round for positive numbers."""
+    return math.floor(x + 0.5)

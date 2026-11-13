@@ -4,7 +4,7 @@
 
 Plays a recorded run at half speed in headless Chromium (static site, port 8102) and takes the frame when the
 state asked for is on screen: a lime packet on an edge with the trace part filled, then an orange packet
-(an error, retry or re-plan verdict) returning from the verifier.
+leaving the verifier (checked from the graph's own state, not from a time).
 """
 
 from __future__ import annotations
@@ -28,20 +28,26 @@ PROBE = """() => {
   const col = p.map(n => n.querySelector('.trail').getAttribute('stroke'));
   const len = Math.max(0, ...p.map(n => { const t = n.querySelector('.trail'); const g = n => +t.getAttribute(n);
     return Math.hypot(g('x2') - g('x1'), g('y2') - g('y1')); }));
-  return {n: p.length, ember: col.some(c => c.includes('ember')), lime: col.some(c => c.includes('lime')),
+  // the state behind the caption "an orange packet returning from the verifier on a retry": the verifier reads
+  // "retry" and an orange packet's trail starts at the verifier node, not at a tool
+  const vx = +document.querySelector('#graph .node.verifier .sub').getAttribute('x');
+  const vsub = document.querySelector('#graph .node.verifier .sub').textContent;
+  const fromVerifier = p.some(n => { const t = n.querySelector('.trail'); return t.getAttribute('stroke').includes('ember') && Math.abs(+t.getAttribute('x1') - vx) < 1; });
+  return {n: p.length, ember: col.some(c => c.includes('ember')), lime: col.some(c => c.includes('lime')), fromVerifier, vsub,
           len, rows: document.querySelectorAll('#rows .row').length, done: !document.querySelector('#answer').hidden};
 }"""
 
 
-def grab(page, want_ember: bool, path: Path, min_rows: int, timeout: float = 40.0) -> bool:
+def grab(page, want_ember: bool, path: Path, min_rows: int, timeout: float = 90.0) -> bool:
     end = time.time() + timeout
     while time.time() < end:
         s = page.evaluate(PROBE)
-        if s["n"] and (s["ember"] if want_ember else s["lime"] and not s["ember"]) and s["len"] >= 70 and s["rows"] >= min_rows and not s["done"]:
+        retry_now = s["fromVerifier"]  # an orange packet whose trail starts at the verifier node
+        if s["n"] and (retry_now if want_ember else s["lime"] and not s["ember"]) and s["len"] >= 70 and s["rows"] >= min_rows and (retry_now or not s["done"]):
             page.evaluate("window.scrollTo(0, 0)")
             page.screenshot(path=str(path))
             return True
-        if s["done"]:
+        if s["done"] and not want_ember:
             return False
         time.sleep(0.02)
     return False

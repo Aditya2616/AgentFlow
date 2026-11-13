@@ -6,11 +6,11 @@ Success = task passes its checker. Intervals are 95% Wilson. Rate 0 is one clean
 
 | fault rate | arm | success [95% CI] | model calls | tool calls | faults injected |
 |---|---|---|---|---|---|
-| 0% | no verifier | 62% (15/24) [43, 79] | 3.9 | 1.8 | 0.0 |
-| 0% | retry only | 62% (15/24) [43, 79] | 4.2 | 2.3 | 0.0 |
+| 0% | no verifier | 63% (15/24) [43, 79] | 3.9 | 1.8 | 0.0 |
+| 0% | retry only | 63% (15/24) [43, 79] | 4.2 | 2.3 | 0.0 |
 | 0% | full verifier | 71% (17/24) [51, 85] | 5.6 | 3.2 | 0.0 |
 | 15% | no verifier | 58% (70/120) [49, 67] | 3.9 | 1.8 | 0.2 |
-| 15% | retry only | 62% (75/120) [54, 71] | 4.1 | 2.5 | 0.2 |
+| 15% | retry only | 63% (75/120) [54, 71] | 4.1 | 2.5 | 0.2 |
 | 15% | full verifier | 71% (85/120) [62, 78] | 5.5 | 3.4 | 0.3 |
 | 30% | no verifier | 48% (57/120) [39, 56] | 3.9 | 1.8 | 0.4 |
 | 30% | retry only | 59% (71/120) [50, 68] | 4.0 | 2.8 | 0.7 |
@@ -40,14 +40,14 @@ Paired exact tests (same task and seed; discordant pairs only, two-sided sign te
 
 | fault rate | arm | success [95% CI] | model calls | tool calls | faults injected |
 |---|---|---|---|---|---|
-| 0% | no verifier | 62% (15/24) [43, 79] | 3.9 | 1.8 | 0.0 |
-| 0% | retry only | 62% (15/24) [43, 79] | 4.2 | 2.3 | 0.0 |
+| 0% | no verifier | 63% (15/24) [43, 79] | 3.9 | 1.8 | 0.0 |
+| 0% | retry only | 63% (15/24) [43, 79] | 4.2 | 2.3 | 0.0 |
 | 0% | full verifier | 71% (17/24) [51, 85] | 5.6 | 3.2 | 0.0 |
 | 15% | no verifier | 57% (68/120) [48, 65] | 3.9 | 1.8 | 0.2 |
 | 15% | retry only | 59% (71/120) [50, 68] | 4.1 | 2.3 | 0.2 |
 | 15% | full verifier | 71% (85/120) [62, 78] | 5.8 | 3.5 | 0.2 |
 | 30% | no verifier | 50% (60/120) [41, 59] | 3.9 | 1.8 | 0.3 |
-| 30% | retry only | 52% (63/120) [44, 61] | 4.1 | 2.3 | 0.3 |
+| 30% | retry only | 53% (63/120) [44, 61] | 4.1 | 2.3 | 0.3 |
 | 30% | full verifier | 71% (85/120) [62, 78] | 6.3 | 3.9 | 0.6 |
 | 50% | no verifier | 40% (48/120) [32, 49] | 3.9 | 1.8 | 0.6 |
 | 50% | retry only | 43% (52/120) [35, 52] | 4.1 | 2.3 | 0.5 |

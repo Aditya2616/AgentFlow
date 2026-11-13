@@ -22,6 +22,7 @@ import argparse
 import json
 import re
 import sys
+from fractions import Fraction
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,7 +31,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from agentflow.config import AgentConfig  # noqa: E402
 from agentflow.evals import breakdown, dose_report, report  # noqa: E402
 from agentflow.evals.dose_report import ARM_LABEL, ARMS, KIND_LABEL, KINDS, summarise  # noqa: E402
-from agentflow.evals.stats import mcnemar_exact, wilson  # noqa: E402
+from agentflow.evals.stats import mcnemar_exact, pct_int, round_half_up, wilson  # noqa: E402
 from agentflow.evals.tasks import EMAIL, build_tasks  # noqa: E402
 
 RES = ROOT / "evals" / "results"
@@ -48,11 +49,17 @@ def _tasks():
 
 
 def pc(k: int, n: int) -> str:
-    return f"{round(100 * k / n)}%"
+    """A rate as a whole percentage, halves rounded up (the UI rounds the same way)."""
+    return f"{pct_int(k, n)}%"
 
 
 def pts(k: int, n: int) -> int:
-    return round(100 * k / n)
+    return pct_int(k, n)
+
+
+def diff_pts(a: dict, b: dict) -> int:
+    """a minus b in percentage points, computed from the unrounded rates and then rounded half up."""
+    return round_half_up(float(Fraction(100 * a["k"], a["n"]) - Fraction(100 * b["k"], b["n"])))
 
 
 def load(name: str) -> dict:
@@ -96,8 +103,9 @@ def facts(cells, big) -> dict[str, str]:
         k, n = kn(clean[a])
         f[f"clean_{a}_k"], f[f"clean_{a}_pct"] = str(k), pc(k, n)
     f["fail_all"] = str(sum(not any(by[a][t] for a in ARMS) for t in by["full"]))
-    f["only_full_ids"] = ", ".join(t for t in by["full"] if by["full"][t] and not by["off"][t] and not by["retry"][t])
-    f["only_full_n"] = str(len(f["only_full_ids"].split(", "))) if f["only_full_ids"] else "0"
+    only_full = [t for t in by["full"] if by["full"][t] and not by["off"][t] and not by["retry"][t]]
+    f["only_full_ids"] = ", ".join(only_full[:-1]) + (" and " if len(only_full) > 1 else "") + only_full[-1] if only_full else "none"
+    f["only_full_n"] = str(len(only_full))
     f["p_clean_full_retry"] = fmt_p(p_of(cells, "transient", 0.0, "full", "retry"))
     for kind in KINDS:
         for rate in RATES:
@@ -106,14 +114,14 @@ def facts(cells, big) -> dict[str, str]:
             for a in ARMS:
                 f[f"{kind}_{r}_{a}"] = pc(sums[a]["k"], sums[a]["n"])
                 f[f"{kind}_{r}_{a}_calls"] = f"{sums[a]['model_calls']:.1f}"
-            f[f"{kind}_{r}_gap"] = str(pts(sums["full"]["k"], sums["full"]["n"]) - pts(sums["retry"]["k"], sums["retry"]["n"]))
-            f[f"{kind}_{r}_retry_gain"] = str(pts(sums["retry"]["k"], sums["retry"]["n"]) - pts(sums["off"]["k"], sums["off"]["n"]))
+            f[f"{kind}_{r}_gap"] = str(diff_pts(sums["full"], sums["retry"]))
+            f[f"{kind}_{r}_retry_gain"] = str(diff_pts(sums["retry"], sums["off"]))
             if rate:
                 f[f"{kind}_{r}_p_full_retry"] = fmt_p(p_of(cells, kind, rate, "full", "retry"))
                 f[f"{kind}_{r}_p_retry_off"] = fmt_p(p_of(cells, kind, rate, "retry", "off"))
         for a in ARMS:
             c0, c5 = summarise(cell(cells, kind, 0.0, a)), summarise(cell(cells, kind, 0.5, a))
-            f[f"{kind}_drop_{a}"] = str(pts(c0["k"], c0["n"]) - pts(c5["k"], c5["n"]))
+            f[f"{kind}_drop_{a}"] = str(diff_pts(c0, c5))
     f["seeds"] = str(len(cell(cells, "transient", 0.3, "full")["rows"]) // len(clean["full"]["rows"]))
     f["runs_per_cell"] = str(len(cell(cells, "transient", 0.3, "full")["rows"]))
     # failure breakdown (from FAILURES.md, which is generated from the traces)
@@ -176,7 +184,7 @@ def dose_tables(cells) -> str:
                 "| fault rate | runs per arm | " + " | ".join(ARM_LABEL[a] for a in ARMS) + " |", "|---|---|---|---|---|"]
         for rate in dose_report.rates_for(cells):
             sums = [summarise(cell(cells, kind, rate, a)) for a in ARMS]
-            row = " | ".join(f"{100 * s['rate']:.0f}% [{100 * s['lo']:.0f}, {100 * s['hi']:.0f}] ({s['model_calls']:.1f})"
+            row = " | ".join(f"{pct_int(s['k'], s['n'])}% [{round_half_up(100 * s['lo'])}, {round_half_up(100 * s['hi'])}] ({s['model_calls']:.1f})"
                              for s in sums)
             out.append(f"| {rate:.0%} | {sums[0]['n']} | {row} |")
         out.append("")
@@ -184,8 +192,19 @@ def dose_tables(cells) -> str:
 
 
 def clean_table() -> str:
-    text = (RES / "FAILURES.md").read_text(encoding="utf-8").splitlines()
-    return "\n".join(ln for ln in text if ln.startswith("|") or ln.startswith("Passing"))
+    """The two tables and the pass-count line from FAILURES.md, with a blank line wherever the kind of line changes
+    (Markdown needs one before and after a table, or the next table renders as rows of the first)."""
+    out: list[str] = []
+    prev = None
+    for ln in (RES / "FAILURES.md").read_text(encoding="utf-8").splitlines():
+        kind = "table" if ln.startswith("|") else "pass" if ln.startswith("Passing") else None
+        if kind is None:
+            continue
+        if prev is not None and kind != prev:
+            out.append("")
+        out.append(ln)
+        prev = kind
+    return "\n".join(out)
 
 
 def extra_table(cells) -> str:

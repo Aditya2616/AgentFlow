@@ -30,3 +30,12 @@ def test_the_check_notices_a_hand_edited_number():
         assert r.returncode == 1 and "red-team samples" in r.stdout
     finally:
         readme.write_bytes(original)
+
+
+def test_percentages_round_halves_up_like_the_ui():
+    from agentflow.evals.stats import pct_int, round_half_up
+
+    assert pct_int(15, 24) == 63 and pct_int(75, 120) == 63  # 62.5, not banker's 62
+    assert pct_int(69, 120) == 58 and pct_int(63, 120) == 53  # 57.5 and 52.5 (floating-point division gets these wrong)
+    assert pct_int(17, 24) == 71 and pct_int(0, 24) == 0 and pct_int(24, 24) == 100
+    assert round_half_up(62.5) == 63 and round_half_up(62.49) == 62

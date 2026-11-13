@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 from .run_suite import RESULTS_DIR
-from .stats import mcnemar_exact, wilson
+from .stats import mcnemar_exact, pct_int, round_half_up, wilson
 
 ARMS = ("off", "retry", "full")
 ARM_LABEL = {"off": "no verifier", "retry": "retry only", "full": "full verifier"}
@@ -62,7 +62,7 @@ def paired(a: dict, b: dict) -> tuple[int, int, int, int]:
 
 
 def pct(s: dict) -> str:
-    return f"{100 * s['rate']:.0f}% ({s['k']}/{s['n']}) [{100 * s['lo']:.0f}, {100 * s['hi']:.0f}]"
+    return f"{pct_int(s['k'], s['n'])}% ({s['k']}/{s['n']}) [{round_half_up(100 * s['lo'])}, {round_half_up(100 * s['hi'])}]"
 
 
 def build_markdown(cells) -> str:

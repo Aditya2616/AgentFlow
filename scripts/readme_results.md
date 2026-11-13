@@ -50,6 +50,8 @@ What the numbers say, with the caveats that matter:
 * **What is and is not caught.** Every injected silent fault has a matching check: no hits, no rows, no output, and a read that
   is shorter than the document's stated length. A wrong-but-plausible value, such as a wrong number in a non-empty
   result, would not be caught by any of them.
+* Percentages are rounded half up (the UI rounds the same way). Point differences are taken between the unrounded
+  rates, so one can be a point larger or smaller than the difference of the two rounded figures beside it.
 * The p-values are paired sign tests over (task, seed) pairs. Seeds of one task are not independent, so they are
   optimistic. The {{n_tasks}} tasks are my own and few.
 

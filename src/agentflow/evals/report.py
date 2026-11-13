@@ -7,7 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .run_suite import RESULTS_DIR
-from .stats import mcnemar_exact, wilson
+from .stats import mcnemar_exact, pct_int, round_half_up, wilson
 
 BANDS = [("single", "single tool"), ("two_step", "two steps"), ("multi", "three steps"),
          ("adversarial", "adversarial")]
@@ -15,7 +15,7 @@ BANDS = [("single", "single tool"), ("two_step", "two steps"), ("multi", "three 
 
 def _pct(k: int, n: int) -> str:
     lo, hi = wilson(k, n)
-    return f"{k}/{n} = {100 * k / n:.0f}% [{100 * lo:.0f}, {100 * hi:.0f}]" if n else "-"
+    return f"{k}/{n} = {pct_int(k, n)}% [{round_half_up(100 * lo)}, {round_half_up(100 * hi)}]" if n else "-"
 
 
 def load(results_dir: Path = RESULTS_DIR) -> list[dict]:

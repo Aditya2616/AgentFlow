@@ -1,7 +1,7 @@
 """Drive the UI in headless Chromium and capture screenshots, console errors and overflow checks.
 
     python scripts/screenshots.py            # server mode (uses port 8102) and static docs mode
-    python scripts/screenshots.py --assets   # also copy the README screenshots into docs/assets/
+    python scripts/screenshots.py --assets   # also copy the README screenshots (trace sheet, results) into docs/assets/
 
 Screenshots go to .shots/ (ignored by git). Exit code 1 if any console error or horizontal overflow.
 """
@@ -80,6 +80,12 @@ def run_mode(label: str, live: bool, problems: list[str]) -> None:
             if vname == "phone":
                 page.click("#sheet-handle")
                 time.sleep(0.7)
+                # start the list at the first failed call, on a row boundary, so the retry and the pass that follows it show
+                page.evaluate(
+                    """() => { const box = document.querySelector('#rows'); const li = box.querySelector('li.tone-bad');
+                      if (li) box.scrollTop += li.getBoundingClientRect().top - box.getBoundingClientRect().top; }"""
+                )
+                time.sleep(0.3)
                 page.screenshot(path=SHOTS / f"{label}-{vname}-03-trace-sheet.png")
                 page.click("#sheet-handle")
             # open a row to check the detail view
@@ -141,9 +147,9 @@ def main() -> int:
     if args.assets:
         assets = ROOT / "docs" / "assets"
         assets.mkdir(parents=True, exist_ok=True)
-        for src, dst in [("server-desktop-02-done.png", "ui-desktop.png"), ("server-phone-01-playing.png", "ui-phone.png"),
-                         ("server-phone-03-trace-sheet.png", "ui-phone-trace.png"),
-                         ("server-desktop-06-results.png", "ui-results.png")]:
+        # result shots come from the static (recorded) mode, so the badge reads "recorded", not a live scripted model
+        for src, dst in [("static-phone-03-trace-sheet.png", "ui-phone-trace.png"),
+                         ("static-desktop-06-results.png", "ui-results.png")]:
             if (SHOTS / src).exists():
                 shutil.copyfile(SHOTS / src, assets / dst)
     print("\n".join(problems) if problems else "no console errors, no overflow, tap targets ok")

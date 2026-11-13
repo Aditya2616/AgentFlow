@@ -1,5 +1,7 @@
 # AgentFlow
 
+[![CI](https://github.com/Aditya2616/AgentFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/Aditya2616/AgentFlow/actions/workflows/ci.yml) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 An agent that plans a multi-step task, calls tools and checks each result before it moves on. The loop is
 **plan, act, verify**, built as a [LangGraph](https://docs.langchain.com/oss/python/langgraph) state graph with five
 tools (search, Python, SQL, email, documents), a JSONL trace of every call, and a live graph UI where you can watch
@@ -12,18 +14,16 @@ measured answer below, including the parts that did not work.
 **Static demo (replays recorded runs, no backend):** `docs/` is a plain static site, ready for GitHub Pages.
 Every run it shows is a real trace produced by this code, labelled as recorded.
 
-![A recorded run mid-flight: a packet travelling from the planner to the search tool](docs/assets/hero-desktop.png)
+![A recorded run mid-flight on desktop: a lime packet travelling from the planner to the search tool, the trace filling on the right](docs/assets/hero-desktop.png)
 
-A retry in motion: the verifier sends an orange packet back when a result fails its check.
+A retry in motion: when a result fails its check the verifier sends an orange packet back toward the planner, and the trace shows the reason.
 
-<p>
-<img src="docs/assets/retry-desktop.png" width="560" alt="An orange packet returning from the verifier on a retry">
-</p>
+![A recorded run just after a retry on desktop: an orange packet travels from the verifier back toward the planner, and the trace on the right lists the failed tool call and the retry reason](docs/assets/retry-desktop.png)
 
 <p>
-<img src="docs/assets/hero-phone.png" width="240" alt="Phone layout, run picker above the graph">
-<img src="docs/assets/retry-phone.png" width="240" alt="Phone layout during a retry">
-<img src="docs/assets/ui-phone-trace.png" width="240" alt="Phone layout with the trace sheet open">
+<img src="docs/assets/hero-phone.png" width="260" alt="Phone layout: run picker above the graph, a packet in flight to the search tool">
+<img src="docs/assets/retry-phone.png" width="260" alt="Phone layout at the moment of a retry: an orange packet leaving the verifier">
+<img src="docs/assets/ui-phone-trace.png" width="260" alt="Phone layout with the trace sheet open, listing the failed tool call, the retry verdict and the successful second try">
 </p>
 
 ## What is real and what is not
@@ -35,7 +35,7 @@ A retry in motion: the verifier sends an orange packet back when a result fails 
 | OpenAI and Anthropic adapters | Written as LangChain chat models over `httpx`, tested **only** against `httpx.MockTransport` stubs. I had no API keys, so they have never talked to the real services. |
 | Qwen2.5-1.5B-Instruct (`local-large`) | Run for real: the clean suite in all three arms and one fault cell (30% silent faults). Not part of the rest of the fault experiments. |
 
-## Architecture
+## How it works
 
 ```mermaid
 flowchart LR
@@ -75,44 +75,6 @@ flowchart LR
 | `email` | Writes an `.eml` file and a JSONL entry to `outbox/`. Real SMTP only if `AGENTFLOW_SMTP_URL` is set **and** `AGENTFLOW_ALLOW_SEND=1`; a test checks that the URL alone does not send |
 | `docs` | Read or extractively summarise files under the bundled corpus, with path traversal blocked |
 
-## Quickstart
-
-Needs Python 3.11+. The first local run downloads Qwen3-0.6B (about 1.5 GB) from Hugging Face.
-
-```bash
-git clone https://github.com/Aditya2616/AgentFlow
-cd AgentFlow
-python -m venv .venv
-.venv/Scripts/activate            # Windows. On Linux/macOS: source .venv/bin/activate
-pip install -e ".[local,dev]"     # "local" adds torch and transformers for the real model; add ",hybrid" for MiniLM search
-
-pytest                            # fast tests, offline, no model (they also pass with just ".[dev]", which is what CI installs)
-agentflow run "How many orders have the status shipped?" --llm scripted
-agentflow run "How many orders have the status shipped?" --llm local
-agentflow serve                   # UI and API on http://127.0.0.1:8102
-```
-
-The scripted model only knows the prompts of the 24 suite tasks (see `src/agentflow/evals/tasks.py`); the local model
-takes any task. Copy `.env.example` to `.env` for the hosted adapters, which stay off unless you set a key. They have no default model
-id: set `OPENAI_MODEL` or `ANTHROPIC_MODEL` (or pass `--model`), otherwise they raise a configuration error.
-The sample database (`data/sales.db`) is generated on first use from a seeded script.
-
-Other commands: `agentflow replay <trace.jsonl>`, `agentflow build-data`, and the evaluation below.
-
-### The UI
-
-![Results tab](docs/assets/ui-results.png)
-
-* **Results tab**: the dose-response chart and tables below, read from `results.json`.
-* **Recorded runs**: pick a recording, play, pause, change speed or scrub. The graph and trace are re-derived from the
-  events at time *t*; nothing animates without an event behind it.
-* **Live run** (needs the local server): pick a suite task or type your own, choose the model, inject tool faults,
-  switch the verifier off. Free-text tasks are refused from non-localhost clients unless
-  `AGENTFLOW_ALLOW_REMOTE_TASKS=1`, because the agent can run code and write files.
-* Works at 390 px wide with touch and respects `prefers-reduced-motion`. `scripts/screenshots.py` drives it in headless
-  Chromium at 1440x900 and 390x844 in both served and static mode and fails on console errors, horizontal overflow or
-  tap targets under 44 px.
-
 ## Results
 
 <!-- RESULTS:START -->
@@ -146,8 +108,8 @@ The same chart, drawn from `results.json`, is the Results tab of the UI.
 
 | fault rate | runs per arm | no verifier | retry only | full verifier |
 |---|---|---|---|---|
-| 0% | 24 | 62% [43, 79] (3.9) | 62% [43, 79] (4.2) | 71% [51, 85] (5.6) |
-| 15% | 120 | 58% [49, 67] (3.9) | 62% [54, 71] (4.1) | 71% [62, 78] (5.5) |
+| 0% | 24 | 63% [43, 79] (3.9) | 63% [43, 79] (4.2) | 71% [51, 85] (5.6) |
+| 15% | 120 | 58% [49, 67] (3.9) | 63% [54, 71] (4.1) | 71% [62, 78] (5.5) |
 | 30% | 120 | 48% [39, 56] (3.9) | 59% [50, 68] (4.0) | 70% [61, 77] (5.5) |
 | 50% | 120 | 35% [27, 44] (3.9) | 48% [39, 56] (3.5) | 63% [54, 71] (5.9) |
 
@@ -155,36 +117,38 @@ The same chart, drawn from `results.json`, is the Results tab of the UI.
 
 | fault rate | runs per arm | no verifier | retry only | full verifier |
 |---|---|---|---|---|
-| 0% | 24 | 62% [43, 79] (3.9) | 62% [43, 79] (4.2) | 71% [51, 85] (5.6) |
+| 0% | 24 | 63% [43, 79] (3.9) | 63% [43, 79] (4.2) | 71% [51, 85] (5.6) |
 | 15% | 120 | 57% [48, 65] (3.9) | 59% [50, 68] (4.1) | 71% [62, 78] (5.8) |
-| 30% | 120 | 50% [41, 59] (3.9) | 52% [44, 61] (4.1) | 71% [62, 78] (6.3) |
+| 30% | 120 | 50% [41, 59] (3.9) | 53% [44, 61] (4.1) | 71% [62, 78] (6.3) |
 | 50% | 120 | 40% [32, 49] (3.9) | 43% [35, 52] (4.1) | 66% [57, 74] (7.2) |
 
 
 What the numbers say, with the caveats that matter:
 
 * **Clean tasks.** The three arms pass 15, 15 and 17 of 24
-  (62%, 62%, 71%), and 7 tasks fail in every arm. The full verifier's
-  2 extra passes are t01, t06 (see below); that is too few tasks to call a difference (paired
+  (63%, 63%, 71%), and 7 tasks fail in every arm. The full verifier's
+  2 extra passes are t01 and t06 (see below); that is too few tasks to call a difference (paired
   exact p = 0.50).
 * **Both kinds of fault cost the unchecked arm a lot.** From 0% to 50% faults, no verifier loses
-  27 points on transient faults and 22 on silent ones.
-* **Transient failures: retry recovers most of it.** Retry only loses 14 points over the same range and
+  28 points on transient faults and 23 on silent ones.
+* **Transient failures: retry recovers most of it.** Retry only loses 15 points over the same range and
   the full verifier 8. Retry only is 13 points ahead of no verifier at 50%
   (48% against 35%, p = 0.0007). The full verifier's lead over retry
-  only is 9 points at 0%, where nothing has failed (that is the send guard), and grows to
-  15 points at 50% (63% against 48%, p < 0.0001),
+  only is 8 points at 0%, where nothing has failed (that is the send guard), and grows to
+  16 points at 50% (63% against 48%, p < 0.0001),
   because it can re-plan once the retries are used up.
 * **Silent wrong results: only checking helps.** Retry only is 3 points ahead of no verifier at 50%
   (43% against 40%, p = 0.12), because nothing raised and its retries
   rarely fire. The full verifier loses only 5 points over the range and its lead over retry only grows from
-  9 points at 0% to 19 at 30% and 23 at 50% (66% against
+  8 points at 0% to 18 at 30% and 23 at 50% (66% against
   43%, p < 0.0001).
 * **It costs model calls.** At 50% silent faults the full verifier uses 7.2 model calls per task
   against 4.1 for retry only.
 * **What is and is not caught.** Every injected silent fault has a matching check: no hits, no rows, no output, and a read that
   is shorter than the document's stated length. A wrong-but-plausible value, such as a wrong number in a non-empty
   result, would not be caught by any of them.
+* Percentages are rounded half up (the UI rounds the same way). Point differences are taken between the unrounded
+  rates, so one can be a point larger or smaller than the difference of the two rounded figures beside it.
 * The p-values are paired sign tests over (task, seed) pairs. Seeds of one task are not independent, so they are
   optimistic. The 24 tasks are my own and few.
 
@@ -204,7 +168,9 @@ Per-task view of the clean run (no faults). The category is assigned by rules fr
 | t18 | multi | FAIL | FAIL | FAIL | bad arguments | email/python/sql: no such column: order_items.order_date |
 | t19 | multi | FAIL | FAIL | FAIL | planner: needed step missing | docs/email: never called |
 | t21 | multi | FAIL | FAIL | FAIL | bad arguments | docs/email/python: the model did not call the tool |
+
 Passing: off 15/24, retry only 15/24, full 17/24. Fail in every arm: 7. Fail in some arms: 2.
+
 | category | fails in every arm | fails in some arms |
 |---|---|---|
 | bad arguments | 3 | 1 |
@@ -214,7 +180,7 @@ Passing: off 15/24, retry only 15/24, full 17/24. Fail in every arm: 7. Fail in 
 7 tasks fail in every arm: 4 because the 0.6B planner leaves out a step the task needs (for example it
 plans only a Python step for a question that needs a database lookup first), and 3 because it cannot write
 working arguments (an unknown column, an undefined variable, or no tool call at all) within the retry budget. More tries do
-not fix a model that does not know the schema. The tasks that differ between arms are t01, t06, which only the full
+not fix a model that does not know the schema. The tasks that differ between arms are t01 and t06, which only the full
 verifier passes: t01 because the other arms also email an invented address on a task that asked for no email (the send guard
 drops that step), and t06 because its re-plan replaces a plan whose code kept failing.
 
@@ -248,12 +214,12 @@ The checkers changing is why these numbers differ from my first scoring. Each ce
 
 | fault rate | kind | no verifier | retry only | full verifier |
 |---|---|---|---|---|
-| 0% | none | 67% to 62% | 67% to 62% | 67% to 71% |
-| 15% | transient | 60% to 58% | 67% to 62% | 68% to 71% |
+| 0% | none | 67% to 63% | 67% to 63% | 67% to 71% |
+| 15% | transient | 60% to 58% | 67% to 63% | 68% to 71% |
 | 30% | transient | 48% to 48% | 63% to 59% | 67% to 70% |
 | 50% | transient | 35% to 35% | 50% to 48% | 62% to 63% |
-| 15% | silent | 60% to 57% | 62% to 59% | 67% to 71% |
-| 30% | silent | 52% to 50% | 55% to 52% | 66% to 71% |
+| 15% | silent | 60% to 57% | 63% to 59% | 67% to 71% |
+| 30% | silent | 53% to 50% | 55% to 53% | 66% to 71% |
 | 50% | silent | 42% to 40% | 45% to 43% | 61% to 66% |
 
 On the clean run the checker change alone moved the arms from
@@ -269,7 +235,7 @@ runs per arm.
 
 | model | clean, no verifier | clean, retry only | clean, full verifier | 30% silent, no verifier | 30% silent, retry only | 30% silent, full verifier |
 |---|---|---|---|---|---|---|
-| Qwen3-0.6B (default) | 15/24 | 15/24 | 17/24 | 50% (60/120) | 52% (63/120) | 71% (85/120) |
+| Qwen3-0.6B (default) | 15/24 | 15/24 | 17/24 | 50% (60/120) | 53% (63/120) | 71% (85/120) |
 | Qwen2.5-1.5B-Instruct | 13/24 | 14/24 | 14/24 | 43% (52/120) | 47% (56/120) | 56% (67/120) |
 
 At 30% silent faults the full verifier is still ahead of retry only (56% against 47%, p
@@ -285,6 +251,70 @@ The search tool was checked on 30 labelled questions (`python -m agentflow.evals
 by reciprocal rank recall@1 1.000, recall@3 1.000. The default is BM25 alone, which needs no
 model download.
 <!-- RESULTS:END -->
+
+## Quickstart
+
+Needs Python 3.11+. The first local run downloads Qwen3-0.6B (about 1.5 GB) from Hugging Face.
+
+```bash
+git clone https://github.com/Aditya2616/AgentFlow
+cd AgentFlow
+python -m venv .venv
+. .venv/bin/activate             # Windows: .venv\Scripts\activate
+pip install -e ".[local,dev]"     # "local" adds torch and transformers for the real model; add ",hybrid" for MiniLM search
+
+pytest                            # fast tests, offline, no model (they also pass with just ".[dev]", which is what CI installs)
+agentflow run "How many orders have the status shipped?" --llm scripted
+agentflow run "How many orders have the status shipped?" --llm local
+agentflow serve                   # UI and API on http://127.0.0.1:8102
+```
+
+The scripted model only knows the prompts of the 24 suite tasks (see `src/agentflow/evals/tasks.py`); the local model
+takes any task. Copy `.env.example` to `.env` for the hosted adapters, which stay off unless you set a key. They have no default model
+id: set `OPENAI_MODEL` or `ANTHROPIC_MODEL` (or pass `--model`), otherwise they raise a configuration error.
+The sample database (`data/sales.db`) is generated on first use from a seeded script.
+
+Other commands: `agentflow replay <trace.jsonl>`, `agentflow build-data`, and the evaluation below.
+
+## Reproduce
+
+```bash
+agentflow ablate --rates 0,0.15,0.3,0.5 --seeds 5   # the fault experiment; one JSON file per cell in evals/results/dose/
+agentflow eval-report                               # evals/results/SUMMARY.md
+agentflow rescore                                   # re-score stored results with the current checkers, offline
+python scripts/check_numbers.py --write             # DOSE.md, the chart, results.json and the results block above
+python scripts/check_numbers.py --check             # fails if any of them is out of sync (a fast test runs this)
+python scripts/screenshots.py --assets              # UI check at 1440x900 and 390x844, and the README screenshots
+python scripts/hero_shots.py                        # the hero and retry frames
+```
+
+The ablation loads Qwen3-0.6B (about 1.5 GB, downloaded on first use); the numbers above come from a GPU run in float16. The fast tests and `check_numbers.py` need no model.
+
+## Layout
+
+```
+src/agentflow/   graph.py (the plan, act, verify graph), planner.py, verifier.py, tools/ (the five tools and the sandbox),
+                 llm/ (local, scripted, OpenAI and Anthropic adapters), tracing/, server/ (FastAPI and SSE), evals/, cli.py
+web/             the UI source: plain JavaScript modules, no build step
+docs/            the same UI copied for static hosting (scripts/build_docs.py), recordings/, results.json, assets/, notes/
+evals/           results/ (one JSON per cell, DOSE.md, FAILURES.md, SUMMARY.md), first_scoring.json, retrieval.json
+scripts/         check_numbers.py, screenshots.py, hero_shots.py, record_runs.py, build_docs.py
+tests/           fast, offline; they pass without a model
+```
+
+## Static demo and UI
+
+![The Results tab of the static demo (recorded data): task success against injected fault rate for no verifier, retry only and full verifier, with Wilson bands, and the table of every cell](docs/assets/ui-results.png)
+
+* **Results tab**: the dose-response chart and tables below, read from `results.json`.
+* **Recorded runs**: pick a recording, play, pause, change speed or scrub. The graph and trace are re-derived from the
+  events at time *t*; nothing animates without an event behind it.
+* **Live run** (needs the local server): pick a suite task or type your own, choose the model, inject tool faults,
+  switch the verifier off. Free-text tasks are refused from non-localhost clients unless
+  `AGENTFLOW_ALLOW_REMOTE_TASKS=1`, because the agent can run code and write files.
+* Works at 390 px wide with touch and respects `prefers-reduced-motion`. `scripts/screenshots.py` drives it in headless
+  Chromium at 1440x900 and 390x844 in both served and static mode and fails on console errors, horizontal overflow or
+  tap targets under 44 px.
 
 ## Sandbox: what it does and does not protect
 

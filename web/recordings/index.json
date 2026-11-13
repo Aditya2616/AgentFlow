@@ -2,7 +2,7 @@
  "recordings": [
   {
    "file": "local-qwen3-0.6b_clean_verify-t20-s0.jsonl",
-   "title": "Real model, three steps with one retry",
+   "title": "Real model, two steps with one retry",
    "kind": "local",
    "model": "Qwen/Qwen3-0.6B",
    "date": "2026-11-12",
