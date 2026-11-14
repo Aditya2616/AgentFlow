@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Aditya2616/AgentFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/Aditya2616/AgentFlow/actions/workflows/ci.yml) [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
+By [Aditya Jain](https://adityajain16.vercel.app) and [Sneha Singh](https://github.com/snehasingh2608).
+
 An agent that plans a multi-step task, calls tools and checks each result before it moves on. The loop is
 **plan, act, verify**, built as a [LangGraph](https://docs.langchain.com/oss/python/langgraph) state graph with five
 tools (search, Python, SQL, email, documents), a JSONL trace of every call, and a live graph UI where you can watch
@@ -379,4 +381,4 @@ Hugging Face model cards) and are downloaded at run time, not included. Built on
 Tight, Instrument Serif, JetBrains Mono (SIL OFL). Ideas: ReAct, Plan-and-Solve, ReWOO, Reflexion, CRITIC, LangGraph's
 plan-and-execute and reflection tutorials; trace names follow the OpenTelemetry GenAI conventions.
 
-Built by [Aditya Jain](https://adityajain16.vercel.app).
+Built by [Aditya Jain](https://adityajain16.vercel.app) and [Sneha Singh](https://github.com/snehasingh2608).
