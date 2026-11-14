@@ -381,4 +381,9 @@ Hugging Face model cards) and are downloaded at run time, not included. Built on
 Tight, Instrument Serif, JetBrains Mono (SIL OFL). Ideas: ReAct, Plan-and-Solve, ReWOO, Reflexion, CRITIC, LangGraph's
 plan-and-execute and reflection tutorials; trace names follow the OpenTelemetry GenAI conventions.
 
+## Authors
+
+- [Aditya Jain](https://github.com/Aditya2616)
+- [Sneha Singh](https://github.com/snehasingh2608)
+
 Built by [Aditya Jain](https://adityajain16.vercel.app) and [Sneha Singh](https://github.com/snehasingh2608).
